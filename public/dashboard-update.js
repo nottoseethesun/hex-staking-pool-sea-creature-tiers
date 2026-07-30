@@ -1,13 +1,18 @@
 /**
  * @file public/dashboard-update.js
- * @description Sync/status controller. Polls GET /api/status to drive the
- * Update button state (enabled only when a complete scan exists and the data is
- * over 24h old), and — while an update runs — disables the UI and shows the
- * pulsing "Syncing" badge doubling as a progress bar. When an update finishes,
- * the page reloads to pick up the fresh report.
+ * @description Sync/status controller. Polls GET /api/status to drive the header
+ * status badge and the two sync triggers (the header "Sync" button and the
+ * finder "Update" button). The badge always shows status — data freshness when
+ * idle, a live progress bar while a sync runs. Both buttons are enabled only when
+ * the cache is stale (a later UTC day than the cache, or never synced) and not
+ * already syncing; the HEX pool rolls over at 00:00 UTC, so same-UTC-day data has
+ * nothing to fetch. When a sync finishes, the page reloads to pick up the report.
  */
 
 let sawUpdating = false;
+
+/** The two sync triggers, kept in lock-step. */
+const SYNC_BUTTON_IDS = ["syncBtn", "updateBtn"];
 
 /**
  * Format a duration in seconds as hrs:min (e.g. 5025 -> "1:23").
@@ -21,19 +26,63 @@ function formatHrsMin(totalSeconds) {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
+/** Set exactly one freshness/state class on the badge. */
+function setBadgeState(badge, state) {
+  badge.classList.remove("is-syncing", "is-fresh", "is-stale");
+  badge.classList.add(state);
+}
+
 /**
- * Apply a status object to the badge + Update button.
+ * Enable/disable both sync triggers together (and optionally set their tooltip).
+ * @param {boolean} disabled
+ * @param {string} [title]
+ */
+function setSyncButtons(disabled, title) {
+  for (const id of SYNC_BUTTON_IDS) {
+    const btn = document.getElementById(id);
+    btn.disabled = disabled;
+    if (title !== undefined) btn.title = title;
+  }
+}
+
+/**
+ * Data-freshness label for the idle badge. Fresh vs stale flips at the UTC-day
+ * boundary, so a stale cache is reported in whole UTC days behind.
+ * @param {object} s
+ * @returns {string}
+ */
+function idleLabel(s) {
+  if (!s.hasCompleteScan) return "Not Synced Yet";
+  if (!s.updateEnabled) return "Up to date";
+  const d = s.staleDays || 1;
+  return `Stale · ${d} day${d === 1 ? "" : "s"} behind`;
+}
+
+/**
+ * Tooltip for the sync triggers.
+ * @param {object} s
+ * @returns {string}
+ */
+function syncTitle(s) {
+  if (!s.updateEnabled) return "Cache is current for today (UTC).";
+  if (!s.hasCompleteScan) return "No local data yet — run the initial sync.";
+  return "Cache is stale (a new UTC day) — sync to bring it current.";
+}
+
+/**
+ * Apply a status object to the badge + sync buttons.
  * @param {object} s
  */
 function applyStatus(s) {
   const badge = document.getElementById("syncBadge");
   const fill = badge.querySelector(".sync-fill");
   const label = badge.querySelector(".sync-label");
-  const updateBtn = document.getElementById("updateBtn");
+  badge.hidden = false;
   if (s.updating) {
     sawUpdating = true;
     document.body.classList.add("syncing");
-    badge.hidden = false;
+    setBadgeState(badge, "is-syncing");
+    setSyncButtons(true); // already syncing
     // Combined progress across both chains + report; no per-phase text. Show a
     // decimal below 10% so slow early stages (the full-range OA scans) visibly
     // move rather than sitting on a rounded "0%".
@@ -51,17 +100,18 @@ function applyStatus(s) {
     return;
   }
   document.body.classList.remove("syncing");
-  badge.hidden = true;
+  fill.style.width = "0";
   if (sawUpdating) {
     sawUpdating = false;
     window.location.reload();
     return;
   }
-  updateBtn.textContent = "Update";
-  updateBtn.disabled = !s.updateEnabled;
-  updateBtn.title = s.updateEnabled
-    ? "Bring the on-chain data up to date."
-    : s.reason || "Update is not available yet.";
+  label.textContent = idleLabel(s);
+  setBadgeState(
+    badge,
+    s.hasCompleteScan && !s.updateEnabled ? "is-fresh" : "is-stale",
+  );
+  setSyncButtons(!s.updateEnabled, syncTitle(s));
 }
 
 /** Schedule the next poll. @param {number} ms */
@@ -80,15 +130,14 @@ async function poll() {
   }
 }
 
-/** Trigger an update, then resume polling. */
-async function doUpdate() {
-  const btn = document.getElementById("updateBtn");
-  btn.disabled = true;
+/** Trigger a sync, then resume polling. */
+async function doSync() {
+  setSyncButtons(true);
   try {
     const res = await fetch("/api/update", { method: "POST" });
     if (!res.ok) {
       const b = await res.json().catch(() => ({}));
-      btn.title = b.error || "Update failed to start.";
+      setSyncButtons(true, b.error || "Sync failed to start.");
     }
   } catch {
     // ignore; the next poll resyncs the button state
@@ -96,10 +145,10 @@ async function doUpdate() {
   void poll();
 }
 
-/** Wire the Update button and start polling. */
+/** Wire both sync triggers and start polling. */
 export function initSync() {
-  document
-    .getElementById("updateBtn")
-    .addEventListener("click", () => void doUpdate());
+  for (const id of SYNC_BUTTON_IDS) {
+    document.getElementById(id).addEventListener("click", () => void doSync());
+  }
   void poll();
 }

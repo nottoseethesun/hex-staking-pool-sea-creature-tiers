@@ -2,42 +2,48 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { updateStatus, FRESH_HOURS, stageWeights } = require("../src/pipeline");
+const { updateStatus, stageWeights } = require("../src/pipeline");
 
-const HOUR = 3600000;
-const NOW = 1000000000000;
+// Fixed "now" at mid-day UTC so a cache can be placed on the same or an earlier
+// UTC day deterministically.
+const NOON = Date.UTC(2026, 6, 30, 12, 0, 0); // 2026-07-30 12:00:00 UTC
 
-function summaryAgedHours(ethH, plsH) {
+function summaryAt(ethMs, plsMs) {
   return {
     chains: {
-      eth: { timeUtc: new Date(NOW - ethH * HOUR).toISOString() },
-      pls: { timeUtc: new Date(NOW - plsH * HOUR).toISOString() },
+      eth: { timeUtc: new Date(ethMs).toISOString() },
+      pls: { timeUtc: new Date(plsMs).toISOString() },
     },
   };
 }
 
-test("no summary -> no complete scan and update disabled", () => {
-  const s = updateStatus(null, NOW);
+test("no summary -> no complete scan, initial sync offered", () => {
+  const s = updateStatus(null, NOON);
   assert.equal(s.hasCompleteScan, false);
-  assert.equal(s.updateEnabled, false);
-  assert.match(s.reason, /initial scan/i);
-});
-
-test("fresh data (< 24h) -> update disabled", () => {
-  const s = updateStatus(summaryAgedHours(2, 2), NOW);
-  assert.equal(s.hasCompleteScan, true);
-  assert.equal(s.updateEnabled, false);
-  assert.equal(s.ageHours, 2);
-});
-
-test("stale data (> 24h, by the oldest chain) -> update enabled", () => {
-  const s = updateStatus(summaryAgedHours(30, 5), NOW);
   assert.equal(s.updateEnabled, true);
-  assert.equal(s.ageHours, 30);
+  assert.equal(s.staleDays, null);
 });
 
-test("FRESH_HOURS is 24", () => {
-  assert.equal(FRESH_HOURS, 24);
+test("same UTC day -> not stale (buttons disabled)", () => {
+  const morning = Date.UTC(2026, 6, 30, 3, 0, 0); // same UTC day, 9h earlier
+  const s = updateStatus(summaryAt(morning, morning), NOON);
+  assert.equal(s.updateEnabled, false);
+  assert.equal(s.staleDays, 0);
+});
+
+test("earlier UTC day -> stale even when only hours old", () => {
+  const lastNight = Date.UTC(2026, 6, 29, 23, 30, 0); // 12.5h old, previous day
+  const s = updateStatus(summaryAt(lastNight, lastNight), NOON);
+  assert.equal(s.updateEnabled, true);
+  assert.equal(s.staleDays, 1);
+});
+
+test("the stalest chain (oldest UTC day) drives staleness", () => {
+  const today = Date.UTC(2026, 6, 30, 6, 0, 0);
+  const daysAgo = Date.UTC(2026, 6, 27, 6, 0, 0); // 3 UTC days behind
+  const s = updateStatus(summaryAt(today, daysAgo), NOON);
+  assert.equal(s.updateEnabled, true);
+  assert.equal(s.staleDays, 3);
 });
 
 test("stageWeights normalizes block-work; a cached stage gets ~0 of the bar", () => {

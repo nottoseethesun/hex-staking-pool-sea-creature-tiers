@@ -427,14 +427,49 @@ thead th {
   background: rgb(255 255 255 / 8%);
 }
 
+.sync-btn {
+  padding: 0.5rem 1.1rem;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111;
+  cursor: pointer;
+  background: var(--hex-sunrise);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.sync-btn:disabled {
+  color: var(--muted);
+  font-weight: 400;
+  cursor: not-allowed;
+  background: rgb(255 255 255 / 5%);
+  border-color: var(--panel-border);
+  opacity: 0.65;
+}
+
 .sync-badge {
   position: relative;
   overflow: hidden;
   min-width: 200px;
   padding: 0.4rem 0.85rem;
-  border: 1px solid rgb(255 133 31 / 45%);
+  border: 1px solid var(--panel-border);
   border-radius: 999px;
+  text-align: center;
+}
+
+/* Pulses only while a sync runs; idle it's a quiet freshness chip. */
+.sync-badge.is-syncing {
+  border-color: rgb(255 133 31 / 45%);
   animation: sync-pulse 1.6s ease-in-out infinite;
+}
+
+.sync-badge.is-fresh {
+  border-color: rgb(0 200 120 / 55%);
+}
+
+.sync-badge.is-stale {
+  border-color: rgb(255 184 0 / 60%);
 }
 
 .sync-fill {

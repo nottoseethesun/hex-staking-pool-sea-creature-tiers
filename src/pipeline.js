@@ -21,7 +21,12 @@ const cp = require("./scan/checkpoint");
 
 const CHAINS = ["eth", "pls"];
 const HOUR_MS = 60 * 60 * 1000;
-const FRESH_HOURS = 24;
+const DAY_MS = 24 * HOUR_MS;
+
+/** UTC day index (whole days since epoch, aligned to 00:00:00 UTC). */
+function utcDay(ms) {
+  return Math.floor(ms / DAY_MS);
+}
 /** Report's fixed cost as a block-equivalent, so it's a small progress tail. */
 const REPORT_WORK = 150000;
 
@@ -150,32 +155,38 @@ async function runUpdate(ctx) {
  * Compute dashboard update availability + staleness from a summary + now.
  * @param {object|null} summary out/summary.json contents
  * @param {number} nowMs Date.now()
- * @returns {object} { hasCompleteScan, ageHours, updateEnabled, reason }
+ * @returns {object} { hasCompleteScan, ageHours, staleDays, updateEnabled,
+ *   reason } — stale once the UTC day is past the cache's UTC day
  */
 function updateStatus(summary, nowMs) {
   if (!summary || !summary.chains) {
+    // No cache yet — offer the initial sync from the dashboard (progress + ETA
+    // make a browser-triggered first scan usable; it also works from the CLI).
     return {
       hasCompleteScan: false,
       ageHours: null,
-      updateEnabled: false,
-      reason:
-        "No complete scan yet — run the initial scan from the terminal " +
-        "(hexleague update).",
+      staleDays: null,
+      updateEnabled: true,
+      reason: "",
     };
   }
   const times = [summary.chains.eth, summary.chains.pls].map((c) =>
     Date.parse(c.timeUtc),
   );
-  const ageHours = Math.max(0, (nowMs - Math.min(...times)) / HOUR_MS);
-  const updateEnabled = ageHours > FRESH_HOURS;
+  const cacheMs = Math.min(...times);
+  const ageHours = Math.max(0, (nowMs - cacheMs) / HOUR_MS);
+  // The HEX pool rolls over at 00:00:00 UTC, so the cache is stale once the
+  // current UTC day is past the cache's UTC day — regardless of hours elapsed.
+  const staleDays = Math.max(0, utcDay(nowMs) - utcDay(cacheMs));
+  const updateEnabled = staleDays > 0;
   return {
     hasCompleteScan: true,
     ageHours: Math.round(ageHours),
+    staleDays,
     updateEnabled,
     reason: updateEnabled
       ? ""
-      : `Data is up to date (last scan ${Math.round(ageHours)}h ago; ` +
-        "updates enable after 24h).",
+      : "Cache is current for today (UTC); the HEX pool updates at 00:00 UTC.",
   };
 }
 
@@ -183,6 +194,5 @@ module.exports = {
   runUpdate,
   updateStatus,
   stageWeights,
-  FRESH_HOURS,
   CHAINS,
 };
