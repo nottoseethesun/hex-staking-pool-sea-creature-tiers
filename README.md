@@ -1,7 +1,7 @@
 # HEX Sea-Creature League — Where Do You Swim?
 
-[![CI](https://img.shields.io/github/actions/workflow/status/OWNER/hex-staking-pool-sea-creature-tiers/ci.yml?branch=main&label=lint%20%2B%20tests)](../../actions/workflows/ci.yml)
-[![Security Audit](https://img.shields.io/github/actions/workflow/status/OWNER/hex-staking-pool-sea-creature-tiers/security-audit.yml?branch=main&label=security)](../../actions/workflows/security-audit.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/nottoseethesun/hex-staking-pool-sea-creature-tiers/ci.yml?branch=main&label=lint%20%2B%20tests)](../../actions/workflows/ci.yml)
+[![Security Audit](https://img.shields.io/github/actions/workflow/status/nottoseethesun/hex-staking-pool-sea-creature-tiers/security-audit.yml?branch=main&label=security)](../../actions/workflows/security-audit.yml)
 
 ## Overview
 
@@ -92,7 +92,7 @@ npm ci        # install exact pinned dependencies
 ### Development
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/nottoseethesun/hex-staking-pool-sea-creature-tiers.git
 cd hex-staking-pool-sea-creature-tiers
 npm install
 cp .env.example .env   # optional
