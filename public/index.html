@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HEX Sea-Creature League</title>
+    <link rel="icon" href="images/favicons/favicon.ico" sizes="any" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="images/favicons/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="images/favicons/favicon-16x16.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="images/favicons/apple-touch-icon.png"
+    />
+    <link rel="manifest" href="images/favicons/site.webmanifest" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="locked">
+    <div class="sky" aria-hidden="true">
+      <div class="cloud cloud-a"></div>
+      <div class="cloud cloud-b"></div>
+      <div class="cloud cloud-c"></div>
+      <div class="cloud cloud-d"></div>
+    </div>
+
+    <header class="site-header">
+      <div class="header-bar">
+        <h1>
+          <img
+            class="logo"
+            src="images/logo.png"
+            alt="HEX Sea-Creature League logo"
+            title="HEX Sea-Creature League"
+          />
+          HEX Sea-Creature League
+        </h1>
+        <div class="header-controls">
+          <div
+            id="syncBadge"
+            class="sync-badge"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="sync-fill"></span>
+            <span class="sync-label">Syncing…</span>
+          </div>
+          <div class="help-wrap">
+            <button
+              type="button"
+              id="helpBtn"
+              class="help-btn"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              Help
+            </button>
+            <ul id="helpMenu" class="help-menu" hidden>
+              <li>
+                <button type="button" id="showHowBtn">How It Works</button>
+              </li>
+              <li>
+                <button type="button" id="showDisclaimerBtn">Disclaimer</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p class="tagline">
+        Where do you swim in the
+        <a href="https://hex.com" target="_blank" rel="noopener noreferrer"
+          >HEX</a
+        >
+        Staking Pool?<br />
+        Educational-only, read-only, on-chain.
+      </p>
+    </header>
+
+    <main>
+      <nav class="views" aria-label="Chain view">
+        <button type="button" class="view-tab" data-view="eth">Ethereum</button>
+        <button type="button" class="view-tab" data-view="pls">
+          PulseChain
+        </button>
+        <button type="button" class="view-tab is-active" data-view="combined">
+          Combined
+        </button>
+        <span class="info-wrap">
+          <button
+            type="button"
+            class="info-btn"
+            aria-label="About the chain views"
+          >
+            i
+          </button>
+          <span class="info-tip" role="tooltip">
+            These buttons only change which ranking you're viewing. This app
+            <strong>always scans both</strong> Ethereum and PulseChain — choosing
+            a view never starts, stops, or limits a blockchain scan.
+          </span>
+        </span>
+      </nav>
+
+      <p id="status" class="status" role="status">Loading report…</p>
+
+      <section class="panel" id="headlinePanel" hidden>
+        <h2>Pool at a glance</h2>
+        <dl class="headline">
+          <div>
+            <dt>As of (ETH)</dt>
+            <dd id="asofEth">—</dd>
+          </div>
+          <div>
+            <dt>As of (PLS)</dt>
+            <dd id="asofPls">—</dd>
+          </div>
+          <div>
+            <dt>Pool total</dt>
+            <dd id="poolTotal">—</dd>
+          </div>
+          <div>
+            <dt>Non-OA pool</dt>
+            <dd id="poolNonOa">—</dd>
+          </div>
+          <div>
+            <dt>OA excluded</dt>
+            <dd id="oaExcluded">—</dd>
+          </div>
+          <div>
+            <dt>Non-OA stakers</dt>
+            <dd id="stakerCount">—</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="panel" id="wherePanel">
+        <h2>Find Your Sea Creature</h2>
+        <form id="whereForm" class="where-form">
+          <div class="field">
+            <div class="label-row">
+              <label for="whereTshares"
+                >Your total HEX Staking Pool T-Shares</label
+              >
+              <span class="info-wrap">
+                <button
+                  type="button"
+                  id="tsharesInfoBtn"
+                  class="info-btn"
+                  aria-label="Show T-Share details"
+                  title="Show details"
+                >
+                  i
+                </button>
+              </span>
+            </div>
+            <input
+              id="whereTshares"
+              class="tshares-input"
+              name="tshares"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              size="8"
+              placeholder="e.g. 42.5"
+            />
+          </div>
+          <div class="where-buttons">
+            <button type="submit">Find My Sea Creature Level</button>
+            <button type="button" id="updateBtn" class="update-btn" disabled>
+              Update
+            </button>
+          </div>
+        </form>
+        <div id="whereResult" class="where-result" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" id="tierPanel" hidden>
+        <h2>Sea Creature Table</h2>
+        <p class="hint">
+          You belong to the highest tier whose <strong>Min T-Shares</strong> you
+          meet or exceed.
+        </p>
+        <div class="table-scroll">
+          <table id="tierTable">
+            <thead>
+              <tr>
+                <th scope="col">League</th>
+                <th scope="col">% of pool</th>
+                <th scope="col">Min T-Shares (≥)</th>
+                <th scope="col">Wallets</th>
+                <th scope="col">Cumulative</th>
+                <th scope="col">Tier T-Shares</th>
+                <th scope="col">Tier % of pool</th>
+              </tr>
+            </thead>
+            <tbody id="tierBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="topPanel" hidden>
+        <h2>Top 50 non-OA stakers</h2>
+        <div class="table-scroll">
+          <table id="topTable">
+            <thead>
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Address</th>
+                <th scope="col">T-Shares</th>
+                <th scope="col">League</th>
+              </tr>
+            </thead>
+            <tbody id="topBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="sunrise" aria-hidden="true"></div>
+
+    <div
+      id="howModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="howTitle"
+      hidden
+    >
+      <div class="modal-box">
+        <h2 id="howTitle">How It Works</h2>
+        <h3>Your T-Shares</h3>
+        <p>
+          A "HEX T-Share" is one trillion shares of the HEX Crypto Staking Pool.
+          Find your total at
+          <a
+            href="https://www.plscharts.com/portfolio"
+            target="_blank"
+            rel="noopener noreferrer"
+            >plscharts.com/portfolio</a
+          >. Include every format you hold: HEX native stakes (sometimes called
+          HEX solo stakes), HEX Stake Instances (HSIs), and "Pooled Stakes" — the
+          generic term for the non-native, non-HSI formats, such as Maximus DAO
+          tokens ($MAXI) and Pool Party tokens.
+        </p>
+        <h3>Where the data comes from</h3>
+        <p>
+          This app reads on-chain data directly from the HEX contract on Ethereum
+          and PulseChain over JSON-RPC — no third-party indexers or APIs. It
+          caches what it scans, so much may already be available locally (though
+          it can be stale). The <strong>Update</strong> button fetches only the
+          blocks added since the last saved cache, closing the gap to the current
+          chain tip.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="howCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="staleModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="staleTitle"
+      hidden
+    >
+      <div class="modal-box warn">
+        <div class="modal-head">
+          <svg class="warn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 3 L22 20 H2 Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <line
+              x1="12"
+              y1="9"
+              x2="12"
+              y2="14"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <circle cx="12" cy="17" r="1.1" fill="currentColor" />
+          </svg>
+          <h2 id="staleTitle">Data may be stale</h2>
+        </div>
+        <p>
+          This app's on-chain data is more than a week old, so your result may
+          be out of date. We recommend choosing "Update" first — but you can
+          proceed anyway.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="staleUpdateBtn">Update first</button>
+          <button type="button" id="staleProceedBtn" class="secondary">
+            Proceed anyway
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="disclaimerModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="discTitle"
+      hidden
+    >
+      <div class="modal-box">
+        <h2 id="discTitle">Disclaimer</h2>
+        <p id="discModalText"></p>
+        <div class="modal-actions">
+          <button type="button" id="discAcceptBtn">
+            I have read and understood
+          </button>
+          <button type="button" id="discCancelBtn" class="secondary">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="lockOverlay" class="lock-overlay" hidden>
+      <div class="lock-msg">
+        You declined the disclaimer.<br />
+        Reload the page to continue.
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <p id="disclaimer" class="disclaimer"></p>
+      <p class="build">
+        <span id="buildInfo"></span>
+      </p>
+    </footer>
+
+    <script type="module" src="dashboard-init.js"></script>
+  </body>
+</html>

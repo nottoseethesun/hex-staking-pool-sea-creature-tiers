@@ -1,0 +1,24 @@
+name: Security Audit (Scheduled)
+
+# Daily dependency-CVE sweep against the current main branch, so newly
+# disclosed advisories are caught even when no code has changed.
+on:
+  schedule:
+    - cron: "55 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: Dependency CVEs (scheduled)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run audit:deps

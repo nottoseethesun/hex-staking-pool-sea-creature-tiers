@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+data/
+out/
+tmp/
+public/build-info.js
+src/build-info.json
+test/report-artifacts/
+coverage/

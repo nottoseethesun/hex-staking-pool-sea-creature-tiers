@@ -1,0 +1,224 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HEX Sea-Creature League API",
+    "version": "1.0.0",
+    "description": "Read-only HTTP API over the HEX sea-creature league analysis. Its purpose is to let other applications obtain a staker's sea-creature level and the pool breakdown. The key consumer endpoint is GET /api/whereami. Educational and informational only; see GET /api/disclaimer."
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:3693", "description": "Local dashboard server" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Liveness and version",
+        "responses": {
+          "200": {
+            "description": "The server is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "version": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/whereami": {
+      "get": {
+        "summary": "Locate a T-Share total (or wallet address set) in the leagues",
+        "description": "Given a T-Share total (`tshares`) or one or more wallet addresses (`address`, repeatable, summed), returns the sea-creature level, rank, percentile, and distance to the next tier for each view (eth, pls, combined). This is the endpoint other apps call for the sea-creature level.",
+        "parameters": [
+          {
+            "name": "tshares",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Total HEX Staking Pool T-Shares (a number, up to 12 decimals)."
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "array", "items": { "type": "string" } },
+            "style": "form",
+            "explode": true,
+            "description": "One or more EVM addresses (summed). Ignored if `tshares` is given."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The location in each view.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WhereAmI" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/summary": {
+      "get": {
+        "summary": "The full report summary (all three views)",
+        "description": "The machine-readable report: per-view pool totals, tier buckets, the non-OA ranking, pre-formatted display strings, and per-chain as-of tip data.",
+        "responses": {
+          "200": {
+            "description": "The summary object.",
+            "content": {
+              "application/json": { "schema": { "type": "object" } }
+            }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "summary": "Data freshness and update progress",
+        "responses": {
+          "200": {
+            "description": "The current status.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Status" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/update": {
+      "post": {
+        "summary": "Trigger an incremental update",
+        "description": "Runs the scan -> oa -> report pipeline in the background when the on-disk data is stale (older than 24h) and a complete scan already exists. Poll GET /api/status for progress.",
+        "responses": {
+          "202": {
+            "description": "The update started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "started": { "type": "boolean" } }
+                }
+              }
+            }
+          },
+          "409": { "$ref": "#/components/responses/Error" },
+          "405": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/disclaimer": {
+      "get": {
+        "summary": "The canonical disclaimer text",
+        "responses": {
+          "200": {
+            "description": "The disclaimer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "disclaimer": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "summary": "This OpenAPI document (self-describing API)",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI spec.",
+            "content": {
+              "application/json": { "schema": { "type": "object" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Error": {
+        "description": "An error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": { "error": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "League": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "emoji": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      },
+      "ViewResult": {
+        "type": "object",
+        "properties": {
+          "input": { "type": "string", "enum": ["tshares", "address"] },
+          "tshares": { "type": "string" },
+          "league": { "$ref": "#/components/schemas/League" },
+          "rank": { "type": "integer" },
+          "nonOaStakerCount": { "type": "integer" },
+          "percentile": { "type": "number" },
+          "nextTier": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/League" },
+              { "type": "null" }
+            ]
+          },
+          "distanceToNextTier": { "type": "string" },
+          "oaHits": { "type": "array", "items": { "type": "string" } },
+          "found": { "type": "array", "items": { "type": "string" } },
+          "missing": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "WhereAmI": {
+        "type": "object",
+        "properties": {
+          "disclaimer": { "type": "string" },
+          "results": {
+            "type": "object",
+            "properties": {
+              "eth": { "$ref": "#/components/schemas/ViewResult" },
+              "pls": { "$ref": "#/components/schemas/ViewResult" },
+              "combined": { "$ref": "#/components/schemas/ViewResult" }
+            }
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "properties": {
+          "hasCompleteScan": { "type": "boolean" },
+          "ageHours": { "type": ["number", "null"] },
+          "updateEnabled": { "type": "boolean" },
+          "reason": { "type": "string" },
+          "updating": { "type": "boolean" },
+          "progress": { "type": "number" },
+          "phase": { "type": "string" }
+        }
+      }
+    }
+  }
+}

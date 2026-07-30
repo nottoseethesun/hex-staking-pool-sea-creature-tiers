@@ -1,0 +1,15 @@
+{
+  "ladder": [
+    { "id": "poseidon", "emoji": "🔱", "name": "Prosperous Poseidon" },
+    { "id": "whale", "emoji": "🐋", "name": "Winning Whale" },
+    { "id": "shark", "emoji": "🦈", "name": "Super Shark" },
+    { "id": "dolphin", "emoji": "🐬", "name": "Dabbing Dolphin" },
+    { "id": "squid", "emoji": "🦑", "name": "Swifty Squid" },
+    { "id": "turtle", "emoji": "🐢", "name": "Tinkering Turtle" },
+    { "id": "crab", "emoji": "🦀", "name": "Cool Crab" },
+    { "id": "shrimp", "emoji": "🦐", "name": "Shy Shrimp" },
+    { "id": "shell", "emoji": "🐚", "name": "Silent Shell" }
+  ],
+  "plankton": { "id": "plankton", "emoji": "🦠", "name": "Plankton" },
+  "wideOcean": { "id": "wide-ocean", "emoji": "🌊", "name": "Wide Ocean" }
+}

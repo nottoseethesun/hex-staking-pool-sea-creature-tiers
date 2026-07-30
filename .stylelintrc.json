@@ -1,0 +1,15 @@
+{
+  "extends": "stylelint-config-standard",
+  "rules": {
+    "selector-class-pattern": null,
+    "custom-property-pattern": null,
+    "no-descending-specificity": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "shorthand-property-no-redundant-values": null,
+    "keyframes-name-pattern": null,
+    "declaration-property-value-no-unknown": null,
+    "at-rule-prelude-no-invalid": null,
+    "comment-word-disallowed-list": [["prettier-ignore"]],
+    "declaration-no-important": true
+  }
+}

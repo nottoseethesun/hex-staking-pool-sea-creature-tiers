@@ -1,0 +1,688 @@
+/*
+ * style.css — HEX Sea-Creature League dashboard.
+ * Night sky (#111 -> #123, HEX's own Background Black/Blue) with pure-CSS
+ * drifting clouds, a bottom sunrise band using the HEX brand gradient, and
+ * hexagon-accented translucent panels in HEX pink/orange.
+ */
+
+:root {
+  /* One uniform 2x scale for the whole UI (100% bigger) — not zoom, and it
+     honours the user's own browser font-size preference. Everything sized in
+     rem scales together (chrome AND panel contents); layout widths are pinned
+     in px below so the panels keep their footprint instead of ballooning. */
+  font-size: 200%;
+
+  --sky-top: #111;
+  --sky-bottom: #123;
+  --hex-pink: #f0f;
+  --hex-orange: #ff851f;
+  --hex-sunrise: linear-gradient(
+    30deg,
+    #ffdb01 0%,
+    #ff851f 30%,
+    #ff3d3d 52%,
+    #ff0f6f 70%,
+    #f0f 100%
+  );
+  --panel-bg: rgb(17 20 30 / 82%);
+  --panel-border: rgb(255 15 111 / 22%);
+  --text: #e8edf5;
+  --muted: #9fb0c4;
+  --sans: system-ui, -apple-system, "Segoe UI", roboto, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--sans);
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%)
+    fixed;
+  overflow-x: hidden;
+}
+
+/* Drifting clouds: soft radial-gradient wisps, blurred, slowly repositioned. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(
+      60% 18% at 15% 22%,
+      rgb(150 165 190 / 10%),
+      transparent 70%
+    ),
+    radial-gradient(50% 14% at 55% 12%, rgb(140 155 185 / 8%), transparent 70%),
+    radial-gradient(70% 20% at 82% 34%, rgb(160 170 200 / 9%), transparent 70%),
+    radial-gradient(45% 16% at 35% 48%, rgb(150 140 180 / 7%), transparent 70%);
+  background-repeat: no-repeat;
+  filter: blur(6px);
+  animation: drift-clouds 300s linear infinite alternate;
+}
+
+@keyframes drift-clouds {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      40px -10px,
+      -30px 15px,
+      -50px 8px,
+      25px -12px;
+  }
+}
+
+/* Sunrise band along the bottom of the app. Pinned in px so it keeps its
+   footprint at the 2x UI scale. */
+.sunrise {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 0;
+  height: 160px;
+  pointer-events: none;
+
+  /* Vertical dawn: warm orange along the top edge of the band fading straight
+     down to HEX pink at the bottom of the screen, like a real sunrise. */
+  background: linear-gradient(
+    180deg,
+    #ffdb01 0%,
+    #ff851f 22%,
+    #ff3d3d 48%,
+    #ff0f6f 74%,
+    #f0f 100%
+  );
+  filter: blur(26px);
+  opacity: 0.62;
+}
+
+.site-header {
+  position: relative;
+  z-index: 10;
+  padding: 2rem 1.5rem 0.5rem;
+  text-align: center;
+}
+
+.site-header h1 {
+  margin: 0;
+
+  /* 8vw (not 4vw) so the viewport term tracks the 2x rem bounds. */
+  font-size: clamp(1.6rem, 8vw, 2.6rem);
+  color: var(--hex-pink);
+}
+
+.logo {
+  height: 1em;
+  width: auto;
+  margin-right: 0.2em;
+  vertical-align: -0.18em;
+}
+
+.tagline {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+main {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 140px;
+}
+
+.views {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1rem auto;
+  flex-wrap: wrap;
+}
+
+.view-tab {
+  padding: 0.5rem 1.1rem;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: rgb(255 255 255 / 5%);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.view-tab.is-active {
+  border-color: transparent;
+  background: var(--hex-sunrise);
+  color: #111;
+  font-weight: 700;
+}
+
+.status {
+  text-align: center;
+  color: var(--muted);
+}
+
+.panel {
+  position: relative;
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 1.25rem 1.5rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: 0 0 40px rgb(0 0 0 / 35%);
+}
+
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  border-radius: 14px 14px 0 0;
+  background: var(--hex-sunrise);
+}
+
+/* Hexagon accent before each panel heading. */
+.panel h2::before {
+  content: "";
+  display: inline-block;
+  width: 0.8em;
+  height: 0.92em;
+  margin-right: 0.5em;
+  vertical-align: -0.12em;
+  background: var(--hex-sunrise);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+.hint,
+.tagline {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.tagline a {
+  color: var(--hex-orange);
+}
+
+.headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+}
+
+.headline dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.headline dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+th:first-child,
+td:first-child,
+.tier-name {
+  text-align: left;
+}
+
+thead th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tier-name {
+  border-left: 3px solid var(--hex-pink);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.field input {
+  padding: 0.5rem 0.6rem;
+  color: var(--text);
+  font-family: var(--mono);
+  background: rgb(0 0 0 / 30%);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+
+.where-buttons button {
+  padding: 0.5rem 1.1rem;
+  color: #111;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--hex-sunrise);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.where-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.where-card {
+  padding: 0.75rem 1rem;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+}
+
+.where-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  color: var(--hex-orange);
+}
+
+.where-card p {
+  margin: 0.2rem 0;
+  font-size: 0.9rem;
+}
+
+.site-footer {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.disclaimer {
+  margin: 0 0 0.5rem;
+}
+
+@media (width <= 640px) {
+  th,
+  td {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* ── Header controls: sync badge + Help menu (top-right) ── */
+.header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  /* Keep the badge + Help hard against the right edge, even when the tall
+     title makes the header wrap them onto their own line; add a line of
+     breathing room beneath the block. */
+  margin-left: auto;
+  margin-bottom: 1.5rem;
+}
+
+.help-wrap {
+  position: relative;
+}
+
+.help-btn {
+  padding: 0.5rem 1.1rem;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: rgb(255 255 255 / 5%);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.help-menu {
+  position: absolute;
+  right: 0;
+  z-index: 5;
+  min-width: 160px;
+  margin: 0.3rem 0 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: rgb(17 20 30 / 96%);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.help-menu button {
+  width: 100%;
+  padding: 0.5rem 0.8rem;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: 6px;
+}
+
+.help-menu button:hover {
+  background: rgb(255 255 255 / 8%);
+}
+
+.sync-badge {
+  position: relative;
+  overflow: hidden;
+  min-width: 200px;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid rgb(255 133 31 / 45%);
+  border-radius: 999px;
+  animation: sync-pulse 1.6s ease-in-out infinite;
+}
+
+.sync-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--hex-sunrise);
+  opacity: 0.4;
+  transition: width 0.4s ease;
+}
+
+.sync-label {
+  position: relative;
+  z-index: 1;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+@keyframes sync-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgb(255 133 31 / 0%);
+  }
+
+  50% {
+    box-shadow: 0 0 14px rgb(255 133 31 / 45%);
+  }
+}
+
+/* ── Circle-i info tooltip ── */
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.info-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+
+  /* Lock to a square in every flex context so it renders as a true circle,
+     never a stretched rectangle. */
+  width: 1.6rem;
+  min-width: 1.6rem;
+  max-width: 1.6rem;
+  height: 1.6rem;
+  min-height: 1.6rem;
+  max-height: 1.6rem;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  color: #111;
+  cursor: help;
+  background: var(--hex-sunrise);
+  border: none;
+  border-radius: 50%;
+}
+
+.info-tip {
+  position: absolute;
+  top: 140%;
+  left: 0;
+  z-index: 6;
+  display: none;
+  width: min(320px, 80vw);
+  padding: 0.7rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  background: rgb(17 20 30 / 98%);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.info-tip a {
+  color: var(--hex-orange);
+}
+
+.info-wrap:hover .info-tip,
+.info-wrap:focus-within .info-tip {
+  display: block;
+}
+
+/* ── Finder form + reserved result area ── */
+.where-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.where-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.update-btn {
+  color: var(--text);
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid var(--panel-border);
+}
+
+.update-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.where-result {
+  min-height: 3.4rem;
+  margin-top: 1rem;
+}
+
+.creature-line {
+  margin: 0.2rem 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.next-line {
+  margin: 0.2rem 0;
+  color: var(--muted);
+}
+
+/* ── Modals ── */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 55%);
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal-box {
+  max-width: 520px;
+  max-height: 85vh;
+  padding: 1.4rem 1.6rem;
+  overflow-y: auto;
+  background: rgb(17 20 30 / 98%);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+}
+
+.modal-box h3 {
+  margin: 1.1rem 0 0.3rem;
+  color: var(--hex-orange);
+  font-size: 1.1rem;
+}
+
+.modal-box.warn {
+  border-color: rgb(255 184 0 / 60%);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.modal-head h2 {
+  margin: 0;
+}
+
+.warn-icon {
+  width: 2rem;
+  height: 2rem;
+  color: #ffb800;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.2rem;
+}
+
+.modal-actions button {
+  padding: 0.5rem 1.1rem;
+  color: #111;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--hex-sunrise);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.modal-actions button.secondary {
+  color: var(--text);
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid var(--panel-border);
+}
+
+/* ── UI disabled while an update is running ── */
+.syncing main {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* T-Shares finder input: a compact eight-character-wide box. */
+.tshares-input {
+  align-self: flex-start;
+}
+
+/* ── Disclaimer gate: the app is inert until "I have read and understood" ── */
+.locked main,
+.locked .header-controls {
+  pointer-events: none;
+}
+
+/* Shown after the disclaimer is declined; the app stays disabled until reload. */
+.lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  background: rgb(0 0 0 / 78%);
+}
+
+.lock-overlay[hidden] {
+  display: none;
+}
+
+.lock-msg {
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1.8;
+}

@@ -1,0 +1,12 @@
+{
+  "concurrency": 4,
+  "tipLagBlocks": 64,
+  "retryAttempts": 6,
+  "retryBaseMs": 500,
+  "nativeTraceChunk": 2000,
+  "batchSize": 200,
+  "maxEvidence": 3,
+  "topContracts": 200,
+  "oaMaxHops": 3,
+  "oaFundingThreshold": 0.2
+}

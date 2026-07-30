@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# hex-staking-pool-sea-creature-tiers — ignore rules
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencies
+node_modules/
+
+# Environment / local secrets (keep the tracked templates)
+.env
+.env.*
+!.env.example
+
+# Local API keys / RPC secrets — real file is private; template is tracked.
+# config/secrets.json holds e.g. the Ankr Ethereum API key; copy it from
+# config/secrets.example.json and fill in your own key.
+config/secrets.json
+
+# On-chain scan cache (immutable, regenerable) + derived report outputs.
+# These are rebuilt from the chain by `hexleague scan` / `oa` / `report`.
+data/
+out/
+tmp/
+
+# Generated build metadata (written by scripts/build-info.js)
+public/build-info.js
+src/build-info.json
+
+# Lint/test/check reports + coverage
+test/report-artifacts/
+coverage/
+
+# Claude Code machine-local settings (shared settings.json IS tracked)
+.claude/settings.local.json
+
+# Logs
+logs/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,18 @@
+{
+  "eth": {
+    "id": 1,
+    "name": "ethereum",
+    "defaultRpc": "https://rpc-ethereum.g4mm4.io",
+    "fallbackRpc": "https://ethereum-rpc.publicnode.com",
+    "defaultLogChunk": 5000,
+    "approxDeployBlock": 9041184
+  },
+  "pls": {
+    "id": 369,
+    "name": "pulsechain",
+    "defaultRpc": "https://rpc-pulsechain.g4mm4.io",
+    "fallbackRpc": "https://rpc.pulsechain.box/",
+    "defaultLogChunk": 5000,
+    "approxDeployBlock": 9041184
+  }
+}
