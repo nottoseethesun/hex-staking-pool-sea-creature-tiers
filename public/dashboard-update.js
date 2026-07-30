@@ -53,7 +53,7 @@ function setSyncButtons(disabled, title) {
  */
 function idleLabel(s) {
   if (!s.hasCompleteScan) return "Not Synced Yet";
-  if (!s.updateEnabled) return "Up to date";
+  if (!s.updateEnabled) return "Up to Date";
   const d = s.staleDays || 1;
   return `Stale · ${d} day${d === 1 ? "" : "s"} behind`;
 }

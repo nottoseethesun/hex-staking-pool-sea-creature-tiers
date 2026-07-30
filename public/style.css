@@ -123,8 +123,11 @@ body {
 }
 
 .logo {
+  /* Lock to a square box (the art is 256x256) with object-fit so the hexagon
+     can never render squished, whatever the surrounding line box does. */
+  width: 1em;
   height: 1em;
-  width: auto;
+  object-fit: contain;
   margin-right: 0.2em;
   vertical-align: -0.18em;
 }
@@ -275,6 +278,33 @@ thead th {
 .mono {
   font-family: var(--mono);
   font-size: 0.85rem;
+}
+
+/* ── Elided address + copy icon (top-stakers table) ── */
+.addr-cell {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.addr-text {
+  white-space: nowrap;
+}
+
+.copy-icon {
+  margin-left: auto;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.copy-icon:hover,
+.copy-icon:focus-visible {
+  color: var(--hex-orange);
 }
 
 .field {

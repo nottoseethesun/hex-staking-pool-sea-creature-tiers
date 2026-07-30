@@ -75,6 +75,55 @@ function renderTiers(tiers) {
 }
 
 /**
+ * Shorten an address to its first 7 and last 5 characters (0x12345…abcde).
+ * @param {string} addr
+ * @returns {string}
+ */
+function elideAddr(addr) {
+  return addr.length > 12 ? `${addr.slice(0, 7)}…${addr.slice(-5)}` : addr;
+}
+
+/**
+ * Copy text to the clipboard, briefly flashing a checkmark on the icon.
+ * @param {string} text
+ * @param {HTMLElement} icon
+ */
+function copyAddr(text, icon) {
+  navigator.clipboard.writeText(text).catch(() => {});
+  const orig = icon.textContent;
+  icon.textContent = "✓";
+  setTimeout(() => {
+    icon.textContent = orig;
+  }, 1200);
+}
+
+/**
+ * Build the address cell: the elided address (full on hover) plus a copy icon
+ * pinned to the right that copies the full, unabridged address.
+ * @param {string} fullAddr
+ * @returns {HTMLTableCellElement}
+ */
+function addressCell(fullAddr) {
+  const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "addr-cell";
+  const text = document.createElement("span");
+  text.className = "mono addr-text";
+  text.textContent = elideAddr(fullAddr);
+  text.title = fullAddr;
+  const icon = document.createElement("button");
+  icon.type = "button";
+  icon.className = "copy-icon";
+  icon.textContent = "❏";
+  icon.title = "Copy address";
+  icon.setAttribute("aria-label", "Copy address");
+  icon.addEventListener("click", () => copyAddr(fullAddr, icon));
+  wrap.append(text, icon);
+  td.append(wrap);
+  return td;
+}
+
+/**
  * Render the top-50 rows.
  * @param {object[]} top
  */
@@ -85,7 +134,7 @@ function renderTop(top) {
     const tr = document.createElement("tr");
     tr.append(
       cell(String(row.rank)),
-      cell(row.addr, "mono"),
+      addressCell(row.addr),
       cell(row.tshares),
       cell(row.league),
     );
