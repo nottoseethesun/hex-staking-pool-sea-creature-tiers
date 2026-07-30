@@ -73,6 +73,9 @@
                 <button type="button" id="showHowBtn">How It Works</button>
               </li>
               <li>
+                <button type="button" id="showDonateBtn">Donations</button>
+              </li>
+              <li>
                 <button type="button" id="showDisclaimerBtn">Disclaimer</button>
               </li>
             </ul>
@@ -177,6 +180,9 @@
               placeholder="e.g. 42.5"
             />
           </div>
+          <div id="creatureDisplay" class="creature-display" aria-live="polite">
+            <span class="creature-tbd">TBD</span>
+          </div>
           <div class="where-buttons">
             <button type="submit">Find My Sea Creature Level</button>
             <button type="button" id="updateBtn" class="update-btn" disabled>
@@ -266,6 +272,41 @@
         </p>
         <div class="modal-actions">
           <button type="button" id="howCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="donateModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="donateTitle"
+      hidden
+    >
+      <div class="modal-box">
+        <h2 id="donateTitle">Donate</h2>
+        <p>Please note, donors must not have any expectation of any result.</p>
+        <p>
+          Send Pulse ($PLS), Ether ($ETH), or the token of your choice to:
+        </p>
+        <p class="donate-addr-row">
+          <span class="donate-addr" id="donateAddr"
+            >0x52Cf7B0c566B3Bae5d42038dc357dbC9Ab4207D5</span
+          >
+          <button
+            type="button"
+            class="donate-copy"
+            id="donateCopyBtn"
+            aria-label="Copy address"
+            title="Copy address"
+          >
+            ❏
+          </button>
+        </p>
+        <p class="donate-thanks"><em>Thank you for your generosity!</em></p>
+        <div class="modal-actions">
+          <button type="button" id="donateCloseBtn">Close</button>
         </div>
       </div>
     </div>

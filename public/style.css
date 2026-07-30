@@ -450,8 +450,12 @@ thead th {
 
 .sync-badge {
   position: relative;
+  box-sizing: border-box;
   overflow: hidden;
-  min-width: 200px;
+
+  /* Fixed width so the chip never resizes as its label changes — even when the
+     ETA runs to triple-digit hours it stays put and doesn't jar the user. */
+  width: 400px;
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--panel-border);
   border-radius: 999px;
@@ -605,6 +609,35 @@ thead th {
   color: var(--muted);
 }
 
+/* ── Sea-creature graphic (below the T-Shares input) ──
+   Fixed height so swapping the "TBD" placeholder for a found creature never
+   shifts the rest of the app vertically. */
+.creature-display {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 44pt;
+  margin: 0.4rem 0;
+}
+
+.creature-emoji {
+  font-size: 32pt;
+  line-height: 1;
+}
+
+.creature-name {
+  font-size: 20pt;
+  font-weight: 700;
+}
+
+.creature-tbd {
+  font-size: 20pt;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
 /* ── Modals ── */
 .modal {
   position: fixed;
@@ -655,6 +688,42 @@ thead th {
   width: 2rem;
   height: 2rem;
   color: #ffb800;
+}
+
+/* ── Donate modal ── */
+.donate-addr-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.donate-addr {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--hex-orange);
+  word-break: break-all;
+  user-select: all;
+}
+
+.donate-copy {
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.donate-copy:hover,
+.donate-copy:focus-visible {
+  color: var(--hex-orange);
+}
+
+.donate-thanks {
+  text-align: center;
 }
 
 .modal-actions {

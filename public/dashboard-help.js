@@ -89,6 +89,28 @@ function closeHow() {
   document.getElementById("howModal").hidden = true;
 }
 
+/** Open the Donations modal. */
+function openDonate() {
+  document.getElementById("donateModal").hidden = false;
+}
+
+/** Close the Donations modal. */
+function closeDonate() {
+  document.getElementById("donateModal").hidden = true;
+}
+
+/** Copy the donation address, flashing a checkmark on the copy button. */
+function copyDonate() {
+  const addr = document.getElementById("donateAddr").textContent.trim();
+  const icon = document.getElementById("donateCopyBtn");
+  navigator.clipboard.writeText(addr).catch(() => {});
+  const orig = icon.textContent;
+  icon.textContent = "✓";
+  setTimeout(() => {
+    icon.textContent = orig;
+  }, 1200);
+}
+
 /** Wire the Help menu and its "How It Works" + Disclaimer items. */
 export function initHelp() {
   const btn = document.getElementById("helpBtn");
@@ -104,14 +126,24 @@ export function initHelp() {
   });
   document.getElementById("tsharesInfoBtn").addEventListener("click", openHow);
   document.getElementById("howCloseBtn").addEventListener("click", closeHow);
+  document.getElementById("showDonateBtn").addEventListener("click", () => {
+    closeMenu(menu, btn);
+    openDonate();
+  });
+  document
+    .getElementById("donateCloseBtn")
+    .addEventListener("click", closeDonate);
+  document
+    .getElementById("donateCopyBtn")
+    .addEventListener("click", copyDonate);
   document.getElementById("showDisclaimerBtn").addEventListener("click", () => {
     closeMenu(menu, btn);
     openDisclaimer();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !document.getElementById("howModal").hidden) {
-      closeHow();
-    }
+    if (e.key !== "Escape") return;
+    if (!document.getElementById("howModal").hidden) closeHow();
+    if (!document.getElementById("donateModal").hidden) closeDonate();
   });
   document.addEventListener("click", (e) => {
     if (!btn.contains(e.target) && !menu.contains(e.target)) {

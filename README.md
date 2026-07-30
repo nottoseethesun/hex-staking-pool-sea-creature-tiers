@@ -239,9 +239,9 @@ Presented for direction only, with no commitment:
 If this tool is useful to you and you'd like to support its development,
 donations are welcome on any EVM chain at:
 
-`0x0000000000000000000000000000000000000000`
+`0x52Cf7B0c566B3Bae5d42038dc357dbC9Ab4207D5`
 
-(Replace with your own address before publishing.)
+Please note: donors must not have any expectation of any result.
 
 ---
 

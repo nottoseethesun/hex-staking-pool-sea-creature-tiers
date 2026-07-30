@@ -14,7 +14,11 @@ const { HEX_CONTRACT } = require("../chain/constants");
 const { findDeployBlock } = require("../chain/deploy-block");
 const { getLogsChunked } = require("../rpc/get-logs");
 const { decodeStakeLog, STAKE_TOPICS } = require("../decode/stake-events");
-const { appendNdjson, readNdjson } = require("../cache/store");
+const {
+  appendNdjson,
+  readNdjson,
+  truncatePartialLine,
+} = require("../cache/store");
 const { logChunkFor } = require("../config");
 const cp = require("./checkpoint");
 
@@ -88,6 +92,9 @@ async function scanChain(ctx) {
     return { chainKey, tip, deployBlock, rows, scanned: 0 };
   }
   const file = cp.stakesPath(chainKey);
+  // Heal any partial trailing line a hard shutdown may have left mid-append, so
+  // this session's appends never fuse onto a truncated row.
+  truncatePartialLine(file);
   const chunkSize = logChunkFor(config, chainKey);
   await getLogsChunked(client, {
     address: HEX_CONTRACT,
