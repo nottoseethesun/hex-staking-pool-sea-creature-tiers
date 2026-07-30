@@ -75,9 +75,13 @@ function serveStatic(pathname, res) {
     }
     const ext = path.extname(filePath);
     const isHtml = ext === ".html";
+    // Assets are unversioned (no content hash in the filename), so a long
+    // max-age would strand the browser on a stale dashboard-*.js after an edit
+    // — the HTML updates but the cached script does not. "no-cache" lets the
+    // browser store them but forces revalidation, so an edit always takes hold.
     res.writeHead(200, {
       "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": isHtml ? "no-store" : "public, max-age=3600",
+      "Cache-Control": isHtml ? "no-store" : "no-cache",
     });
     res.end(data);
   });
