@@ -81,8 +81,15 @@ function nativeEdge(t) {
  * @returns {Promise<void>}
  */
 function collectHexOut(client, opts) {
-  const { addresses, fromBlock, toBlock, startChunk, onEdge, onProgress } =
-    opts;
+  const {
+    addresses,
+    fromBlock,
+    toBlock,
+    startChunk,
+    onEdge,
+    onProgress,
+    signal,
+  } = opts;
   const span = Math.max(1, toBlock - fromBlock);
   return getLogsChunked(client, {
     address: HEX_CONTRACT,
@@ -90,6 +97,7 @@ function collectHexOut(client, opts) {
     fromBlock,
     toBlock,
     startChunk,
+    signal,
     onLogs: (logs) => emitTransferEdges(logs, onEdge),
     onProgress: onProgress
       ? (p) => onProgress(Math.min(1, Math.max(0, (p.to - fromBlock) / span)))
@@ -104,13 +112,14 @@ function collectHexOut(client, opts) {
  * @returns {Promise<void>}
  */
 function collectHexInbound(client, opts) {
-  const { addresses, fromBlock, toBlock, startChunk, onEdge } = opts;
+  const { addresses, fromBlock, toBlock, startChunk, onEdge, signal } = opts;
   return getLogsChunked(client, {
     address: HEX_CONTRACT,
     topics: [TRANSFER_TOPIC, null, addresses.map(addressTopic)],
     fromBlock,
     toBlock,
     startChunk,
+    signal,
     onLogs: (logs) => emitTransferEdges(logs, onEdge),
   });
 }

@@ -81,6 +81,7 @@ async function collectLayer(client, frontier, ctx) {
     fromBlock: ctx.fromBlock,
     toBlock: ctx.toBlock,
     onEdge,
+    signal: ctx.signal,
   };
   const batches = chunkArray(frontier, BATCH);
   const report = (i, f) =>
@@ -139,6 +140,7 @@ async function bfsFromOa(client, ctx) {
   });
   let frontier = [oa];
   for (let depth = 1; depth <= ctx.maxHops && frontier.length > 0; depth += 1) {
+    ctx.signal?.throwIfAborted();
     const base = depth - 1;
     const recipients = await collectLayer(client, frontier, {
       ...ctx,

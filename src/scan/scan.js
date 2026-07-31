@@ -70,7 +70,7 @@ function persistWindow({
 
 /**
  * Scan (or incrementally top up) a chain's stake ledger to a pinned tip.
- * @param {object} ctx { client, chainKey, config, log, force? }
+ * @param {object} ctx { client, chainKey, config, log, force?, signal? }
  * @returns {Promise<object>} { chainKey, tip, deployBlock, rows, scanned }
  */
 async function scanChain(ctx) {
@@ -102,6 +102,7 @@ async function scanChain(ctx) {
     fromBlock: startBlock,
     toBlock: tip,
     startChunk: chunkSize,
+    signal: ctx.signal,
     onLogs: (logs, range) => {
       rows = persistWindow({
         chainKey,

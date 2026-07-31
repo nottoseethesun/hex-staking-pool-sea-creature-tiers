@@ -544,10 +544,14 @@ thead th {
 
 .sync-btn {
   padding: 0.5rem 1.1rem;
+
+  /* Fixed min-width so toggling "Sync" <-> "Stop Sync" never resizes/jumps. */
+  min-width: 7rem;
   font-family: var(--sans);
   font-size: 0.95rem;
   font-weight: 700;
   color: #111;
+  white-space: nowrap;
   cursor: pointer;
   background: var(--hex-sunrise);
   border: 1px solid transparent;

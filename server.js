@@ -35,6 +35,11 @@ const OPENAPI_PATH = path.join(__dirname, "docs", "openapi.json");
 const NO_REPORT_MSG =
   "No report yet — Ethereum and PulseChain haven't been scanned.";
 
+// The AbortController for the in-process update, or null when idle. Set when a
+// scan starts (POST /api/update), aborted by POST /api/update/stop, and cleared
+// when the run settles.
+let activeUpdate = null;
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -157,17 +162,48 @@ function handleUpdate(req, res) {
     sendJson(res, 409, { error: status.reason || "Update not available." });
     return;
   }
-  if (readUpdateStatus().updating) {
+  if (activeUpdate || readUpdateStatus().updating) {
     sendJson(res, 409, { error: "An update is already running." });
     return;
   }
   // Seed the shared status so /api/status reflects "updating" immediately;
   // runUpdate then owns the progress writes and clears the file when done.
   writeUpdateStatus(0, "Starting");
+  const controller = new AbortController();
+  activeUpdate = controller;
   sendJson(res, 202, { started: true });
-  runUpdate({ config, log })
+  runUpdate({ config, log, signal: controller.signal })
     .then(() => log.info("[update] complete"))
-    .catch((err) => log.error("[update] failed: %s", err.message));
+    .catch((err) => {
+      if (err && err.name === "AbortError") {
+        log.info("[update] stopped by request");
+      } else {
+        log.error("[update] failed: %s", err.message);
+      }
+    })
+    .finally(() => {
+      if (activeUpdate === controller) activeUpdate = null;
+    });
+}
+
+/**
+ * POST /api/update/stop — cooperatively cancel the running update, if any. The
+ * pipeline halts at the next checkpoint-safe boundary and the cache stays
+ * resumable, so a later start tops up from where it stopped.
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+function handleStop(req, res) {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Use POST to stop the scan." });
+    return;
+  }
+  if (!activeUpdate) {
+    sendJson(res, 409, { error: "No scan is running." });
+    return;
+  }
+  activeUpdate.abort();
+  sendJson(res, 202, { stopping: true });
 }
 
 /**
@@ -211,6 +247,7 @@ function handleRequest(req, res) {
   if (url.pathname === "/api/summary") return handleSummary(res);
   if (url.pathname === "/api/whereami") return handleWhereami(url, res);
   if (url.pathname === "/api/status") return handleStatus(res);
+  if (url.pathname === "/api/update/stop") return handleStop(req, res);
   if (url.pathname === "/api/update") return handleUpdate(req, res);
   if (url.pathname === "/api/disclaimer") return handleDisclaimer(res);
   if (url.pathname === "/api/openapi.json") return handleOpenapi(res);

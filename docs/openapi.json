@@ -98,8 +98,8 @@
     },
     "/api/update": {
       "post": {
-        "summary": "Trigger an incremental update",
-        "description": "Runs the scan -> oa -> report pipeline in the background when the on-disk data is stale (older than 24h) and a complete scan already exists. Poll GET /api/status for progress.",
+        "summary": "Start a scan (initial or incremental)",
+        "description": "Runs the scan -> oa -> report pipeline in the background: the initial full scan, or an incremental top-up when the cached data is from a prior UTC day. Poll GET /api/status for progress; POST /api/update/stop cancels a run.",
         "responses": {
           "202": {
             "description": "The update started.",
@@ -108,6 +108,27 @@
                 "schema": {
                   "type": "object",
                   "properties": { "started": { "type": "boolean" } }
+                }
+              }
+            }
+          },
+          "409": { "$ref": "#/components/responses/Error" },
+          "405": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/update/stop": {
+      "post": {
+        "summary": "Stop the running scan",
+        "description": "Cooperatively cancels the in-progress update. The pipeline halts at the next checkpoint-safe boundary, so the cache stays resumable and a later POST /api/update tops up from where it stopped. The dashboard's header Sync button toggles to \"Stop Sync\" while a scan runs and calls this.",
+        "responses": {
+          "202": {
+            "description": "The stop was requested.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "stopping": { "type": "boolean" } }
                 }
               }
             }

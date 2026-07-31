@@ -98,11 +98,11 @@ async function planStages(config, clients, force) {
  * (0..1) via `onProgress(fraction, phase)` and to the shared status file, so the
  * dashboard's Syncing badge + ETA track the run whether it was launched from the
  * button or the CLI.
- * @param {object} ctx { config, log, force?, onProgress? }
+ * @param {object} ctx { config, log, force?, onProgress?, signal? }
  * @returns {Promise<object>} the generateReport result
  */
 async function runUpdate(ctx) {
-  const { config, log, force = false, onProgress = () => {} } = ctx;
+  const { config, log, force = false, onProgress = () => {}, signal } = ctx;
   const clients = {
     eth: makeClient(config, "eth"),
     pls: makeClient(config, "pls"),
@@ -126,6 +126,7 @@ async function runUpdate(ctx) {
         config,
         log,
         force,
+        signal,
         onProgress: (f) => emit(wScan, f, `Scanning ${chainKey}`),
       });
       acc += wScan;
@@ -138,10 +139,12 @@ async function runUpdate(ctx) {
         log,
         activeStakers,
         force,
+        signal,
         onProgress: (f) => emit(wOa, f, `OA cluster ${chainKey}`),
       });
       acc += wOa;
     }
+    signal?.throwIfAborted();
     emit(w.report, 0, "Building report");
     const result = await generateReport({ clients, log });
     emit(w.report, 1, "Done");

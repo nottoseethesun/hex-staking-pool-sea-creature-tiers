@@ -1,18 +1,17 @@
 /**
  * @file public/dashboard-update.js
  * @description Sync/status controller. Polls GET /api/status to drive the header
- * status badge and the two sync triggers (the header "Sync" button and the
- * finder "Update" button). The badge always shows status — data freshness when
- * idle, a live progress bar while a sync runs. Both buttons are enabled only when
- * the cache is stale (a later UTC day than the cache, or never synced) and not
- * already syncing; the HEX pool rolls over at 00:00 UTC, so same-UTC-day data has
- * nothing to fetch. When a sync finishes, the page reloads to pick up the report.
+ * status badge, the header Sync button, and the finder "Update" button. The
+ * badge always shows status — data freshness when idle, a live progress bar
+ * while a sync runs. While a sync runs the header button toggles to "Stop Sync"
+ * (POST /api/update/stop cancels it at the next checkpoint-safe boundary);
+ * otherwise both triggers are enabled only when the cache is stale (a later UTC
+ * day, or never synced) — the HEX pool rolls over at 00:00 UTC, so same-UTC-day
+ * data has nothing to fetch. When a sync finishes, the page reloads to pick up
+ * the report.
  */
 
 let sawUpdating = false;
-
-/** The two sync triggers, kept in lock-step. */
-const SYNC_BUTTON_IDS = ["syncBtn", "updateBtn"];
 
 /**
  * Format a duration in seconds as hrs:min (e.g. 5025 -> "1:23").
@@ -33,16 +32,27 @@ function setBadgeState(badge, state) {
 }
 
 /**
- * Enable/disable both sync triggers together (and optionally set their tooltip).
+ * Set the header Sync/Stop button's label, enabled state, and tooltip.
+ * @param {string} label button text ("Sync" or "Stop Sync")
  * @param {boolean} disabled
  * @param {string} [title]
  */
-function setSyncButtons(disabled, title) {
-  for (const id of SYNC_BUTTON_IDS) {
-    const btn = document.getElementById(id);
-    btn.disabled = disabled;
-    if (title !== undefined) btn.title = title;
-  }
+function setSyncBtn(label, disabled, title) {
+  const btn = document.getElementById("syncBtn");
+  btn.textContent = label;
+  btn.disabled = disabled;
+  if (title !== undefined) btn.title = title;
+}
+
+/**
+ * Enable/disable the finder "Update" trigger (and optionally its tooltip).
+ * @param {boolean} disabled
+ * @param {string} [title]
+ */
+function setUpdateBtn(disabled, title) {
+  const btn = document.getElementById("updateBtn");
+  btn.disabled = disabled;
+  if (title !== undefined) btn.title = title;
 }
 
 /**
@@ -107,7 +117,10 @@ function applyStatus(s) {
     sawUpdating = true;
     document.body.classList.add("syncing");
     setBadgeState(badge, "is-syncing");
-    setSyncButtons(true); // already syncing
+    // While syncing, the header button becomes a live Stop control; the finder
+    // Update trigger is disabled (one stop control is enough).
+    setSyncBtn("Stop Sync", false, "Stop the running sync.");
+    setUpdateBtn(true, "A sync is running.");
     // Combined progress across both chains + report; no per-phase text. Show a
     // decimal below 10% so slow early stages (the full-range OA scans) visibly
     // move rather than sitting on a rounded "0%".
@@ -136,7 +149,8 @@ function applyStatus(s) {
     badge,
     s.hasCompleteScan && !s.updateEnabled ? "is-fresh" : "is-stale",
   );
-  setSyncButtons(!s.updateEnabled, syncTitle(s));
+  setSyncBtn("Sync", !s.updateEnabled, syncTitle(s));
+  setUpdateBtn(!s.updateEnabled, syncTitle(s));
 }
 
 /** Schedule the next poll. @param {number} ms */
@@ -157,12 +171,13 @@ async function poll() {
 
 /** Trigger a sync, then resume polling. */
 async function doSync() {
-  setSyncButtons(true);
+  setSyncBtn("Sync", true);
+  setUpdateBtn(true);
   try {
     const res = await fetch("/api/update", { method: "POST" });
     if (!res.ok) {
       const b = await res.json().catch(() => ({}));
-      setSyncButtons(true, b.error || "Sync failed to start.");
+      setSyncBtn("Sync", true, b.error || "Sync failed to start.");
     }
   } catch {
     // ignore; the next poll resyncs the button state
@@ -170,10 +185,25 @@ async function doSync() {
   void poll();
 }
 
-/** Wire both sync triggers and start polling. */
-export function initSync() {
-  for (const id of SYNC_BUTTON_IDS) {
-    document.getElementById(id).addEventListener("click", () => void doSync());
+/** Ask the server to stop the running sync, then resume polling. */
+async function doStop() {
+  setSyncBtn("Stopping…", true);
+  try {
+    await fetch("/api/update/stop", { method: "POST" });
+  } catch {
+    // ignore; the next poll resyncs the button state
   }
+  void poll();
+}
+
+/** Wire the sync triggers (header toggles start/stop) and start polling. */
+export function initSync() {
+  document.getElementById("syncBtn").addEventListener("click", () => {
+    if (document.body.classList.contains("syncing")) void doStop();
+    else void doSync();
+  });
+  document
+    .getElementById("updateBtn")
+    .addEventListener("click", () => void doSync());
   void poll();
 }

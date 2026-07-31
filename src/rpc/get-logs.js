@@ -23,15 +23,19 @@ const { isChunkError } = require("./client");
  * @param {number} opts.startChunk starting window size (blocks)
  * @param {(logs: any[], range: {from: number, to: number}) => (void|Promise<void>)} opts.onLogs
  * @param {(p: object) => void} [opts.onProgress]
+ * @param {AbortSignal} [opts.signal] cooperative cancel — checked per window
  * @returns {Promise<void>}
  */
 async function getLogsChunked(client, opts) {
-  const { address, topics, fromBlock, toBlock, onLogs } = opts;
+  const { address, topics, fromBlock, toBlock, onLogs, signal } = opts;
   const minChunk = opts.minChunk ?? 1;
   const maxChunk = opts.maxChunk ?? opts.startChunk;
   let chunk = opts.startChunk;
   let from = fromBlock;
   while (from <= toBlock) {
+    // Cooperative stop point: a checkpoint was saved after the previous window,
+    // so aborting here leaves a clean, resumable cursor.
+    signal?.throwIfAborted();
     const to = Math.min(from + chunk - 1, toBlock);
     let logs;
     try {

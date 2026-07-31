@@ -158,7 +158,9 @@ After installing:
    wallet address) and click **Find My Sea Creature Level**. The dashboard shows
    the Ethereum, PulseChain, and Combined league views. Once the data is more
    than 24 hours old, the in-dashboard **Update** button refreshes it in place,
-   with a pulsing **Syncing** badge showing live progress.
+   with a pulsing **Syncing** badge showing live progress. The header **Sync**
+   button starts a scan too and, while one runs, toggles to **Stop Sync** so you
+   can stop it — the scan halts at a checkpoint and resumes on the next start.
 
 > **Data freshness.** Much of the on-chain data may already be cached — so you
 > can start right away, though it can be stale. Click the dashboard's **Update**

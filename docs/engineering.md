@@ -88,8 +88,9 @@ The dashboard server (`npm start`, port 3693) also serves a complete, read-only
 JSON API so the app can be consumed as a dependency by other applications — for
 example to obtain a staker's sea-creature level. Endpoints: `GET /api/health`,
 `GET /api/whereami` (the key consumer endpoint — `?tshares=N` or `?address=0x…`),
-`GET /api/summary`, `GET /api/status`, `POST /api/update`, `GET /api/disclaimer`,
-and `GET /api/openapi.json`. The contract is defined in `docs/openapi.json`.
+`GET /api/summary`, `GET /api/status`, `POST /api/update`,
+`POST /api/update/stop`, `GET /api/disclaimer`, and `GET /api/openapi.json`. The
+contract is defined in `docs/openapi.json`.
 
 Stand up the interactive API reference (rendered with Scalar — the modern,
 maintained OpenAPI reference — self-hosted from `node_modules`, no CDN):
@@ -100,6 +101,30 @@ npm run api-doc
 
 Then open `http://127.0.0.1:5556`. The reference reads `docs/openapi.json`; update
 that file whenever you add or change an endpoint.
+
+### Starting and stopping a scan
+
+`POST /api/update` starts the pipeline (the initial full scan, or an incremental
+top-up when the cached data is from a prior UTC day); `POST /api/update/stop`
+cancels a run. The dashboard's header **Sync** button starts a scan and, while
+one runs, toggles to **Stop Sync** (calling the stop endpoint); the finder's
+**Update** button is a second start trigger.
+
+Cancellation is cooperative and checkpoint-safe. The server holds one
+`AbortController` per run and threads its `AbortSignal` down the pipeline. The
+two RPC loops that gate every scan phase — `getLogsChunked` (`eth_getLogs`, used
+by the stake scan, the OA forward-BFS, and the inbound-denominator scan) and
+`traceStream` (`trace_filter` native transfers) — call `signal.throwIfAborted()`
+at the top of each block window, and the BFS-hop and inbound-batch loops check
+between iterations. The stake ledger's checkpoint is written after each window,
+so a stop lands on a clean, resumable cursor and a later start tops up from
+there. The thrown `AbortError` unwinds through `runUpdate` (whose `finally`
+clears the shared status file), so the badge falls back to idle instead of
+sticking on "Syncing", and the server logs "stopped by request" rather than a
+failure. A stop mid-OA discards only that chain's in-progress OA computation —
+the OA cluster is not incrementally checkpointed — so there is no cache
+corruption, just recomputation on the next run. Only one update runs at a time;
+a second `POST /api/update` while one is active returns `409`.
 
 ## RPC etiquette
 

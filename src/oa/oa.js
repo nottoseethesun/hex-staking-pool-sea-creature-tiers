@@ -71,11 +71,13 @@ async function computeInbound(client, candidates, ctx) {
   };
   const batches = chunkArray(candidates, INBOUND_BATCH);
   for (let i = 0; i < batches.length; i += 1) {
+    ctx.signal?.throwIfAborted();
     const base = {
       addresses: batches[i],
       fromBlock: ctx.fromBlock,
       toBlock: ctx.toBlock,
       onEdge,
+      signal: ctx.signal,
     };
     await collectHexInbound(client, { ...base, startChunk: ctx.startChunk });
     await collectNativeInbound(client, { ...base, startChunk: NATIVE_CHUNK });
@@ -151,6 +153,7 @@ async function buildOa(ctx) {
     codeCache,
     log,
     chainKey,
+    signal: ctx.signal,
   };
   // OA progress: the BFS drives the first half, inbound the second half.
   const { reachable, contracts } = await bfsFromOa(client, {

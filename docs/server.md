@@ -121,7 +121,8 @@ is served by the same local process (`npm start`, `http://127.0.0.1:3693`):
   view.
 - `GET /api/summary` — the full machine-readable report.
 - `GET /api/status` — data freshness and update progress.
-- `POST /api/update` — trigger an incremental update.
+- `POST /api/update` — start a scan (initial or incremental top-up).
+- `POST /api/update/stop` — stop the running scan (checkpoint-safe; resumable).
 - `GET /api/disclaimer` — the disclaimer text.
 - `GET /api/openapi.json` — the OpenAPI 3.1 description (self-describing API).
 

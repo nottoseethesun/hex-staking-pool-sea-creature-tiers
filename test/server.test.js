@@ -98,3 +98,14 @@ test("/api/update requires POST (GET -> 405)", async () => {
   const res = await invoke("/api/update", "GET");
   assert.equal(res.statusCode, 405);
 });
+
+test("/api/update/stop requires POST (GET -> 405)", async () => {
+  const res = await invoke("/api/update/stop", "GET");
+  assert.equal(res.statusCode, 405);
+});
+
+test("/api/update/stop with no scan running answers 409", async () => {
+  const res = await invoke("/api/update/stop", "POST");
+  assert.equal(res.statusCode, 409);
+  assert.match(JSON.parse(res.body).error, /No scan is running/);
+});

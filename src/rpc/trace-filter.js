@@ -41,9 +41,10 @@ function nativeTransfer(trace) {
  * @returns {Promise<void>}
  */
 async function pageWindow(client, opts) {
-  const { addresses, field, from, to, onTransfer } = opts;
+  const { addresses, field, from, to, onTransfer, signal } = opts;
   let after = 0;
   for (;;) {
+    signal?.throwIfAborted();
     const params = [
       {
         fromBlock: toHex(from),
@@ -77,14 +78,22 @@ async function pageWindow(client, opts) {
  * @returns {Promise<void>}
  */
 async function traceStream(client, opts) {
-  const { addresses, field, fromBlock, toBlock, onTransfer } = opts;
+  const { addresses, field, fromBlock, toBlock, onTransfer, signal } = opts;
   const minChunk = opts.minChunk ?? 1;
   let chunk = opts.startChunk ?? toBlock - fromBlock + 1;
   let from = fromBlock;
   while (from <= toBlock) {
+    signal?.throwIfAborted();
     const to = Math.min(from + chunk - 1, toBlock);
     try {
-      await pageWindow(client, { addresses, field, from, to, onTransfer });
+      await pageWindow(client, {
+        addresses,
+        field,
+        from,
+        to,
+        onTransfer,
+        signal,
+      });
     } catch (err) {
       if (chunk > minChunk) {
         chunk = Math.max(minChunk, Math.floor(chunk / 2));

@@ -71,3 +71,51 @@ test("getLogsChunked rethrows a non-chunk error at min chunk", async () => {
     /reverted/,
   );
 });
+
+test("getLogsChunked aborts immediately when the signal is already aborted", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const client = {
+    getLogs: async () => {
+      throw new Error("getLogs must not be called after abort");
+    },
+  };
+  await assert.rejects(
+    getLogsChunked(client, {
+      address: "0x",
+      topics: [],
+      fromBlock: 0,
+      toBlock: 100,
+      startChunk: 50,
+      signal: controller.signal,
+      onLogs: () => {},
+    }),
+    (err) => err.name === "AbortError",
+  );
+});
+
+test("getLogsChunked stops before the next window when aborted mid-scan", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const client = {
+    getLogs: async () => {
+      calls += 1;
+      return [];
+    },
+  };
+  await assert.rejects(
+    getLogsChunked(client, {
+      address: "0x",
+      topics: [],
+      fromBlock: 0,
+      toBlock: 1000,
+      startChunk: 100,
+      signal: controller.signal,
+      // Abort after the first window is handled; the loop must not fetch the
+      // next window — a checkpoint-safe stop.
+      onLogs: () => controller.abort(),
+    }),
+    (err) => err.name === "AbortError",
+  );
+  assert.equal(calls, 1);
+});
