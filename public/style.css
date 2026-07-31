@@ -102,6 +102,67 @@ body::before {
   }
 }
 
+/* ── Drifting clouds (as in lp-ranger): three PNG cloud layers that slowly
+   traverse the screen at layered speeds + opacities for atmospheric depth
+   (nearer clouds denser, farther ones fainter). ── */
+.cloud {
+  /* Bottom cloud = fastest; middle and top are each slowed by the factor
+     again, so all three speeds re-derive from these two knobs. */
+  --cloud-max-speed: 2700s;
+  --cloud-slow-factor: 1.2;
+  --cloud-middle-speed: calc(var(--cloud-max-speed) * var(--cloud-slow-factor));
+  --cloud-top-speed: calc(
+    var(--cloud-max-speed) * var(--cloud-slow-factor) * var(--cloud-slow-factor)
+  );
+
+  position: fixed;
+  left: 0;
+  z-index: 0;
+  width: 900px;
+  height: 600px;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: contain;
+  animation-name: cloud-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.cloud-top {
+  top: 10px;
+  background-image: url("images/cloud-top.png");
+  opacity: 0.22;
+  animation-duration: var(--cloud-top-speed);
+
+  /* Phase-offset the layers so they don't cross the screen in lockstep. */
+  animation-delay: calc(-2 * var(--cloud-max-speed) / 3);
+}
+
+.cloud-middle {
+  top: 40%;
+  background-image: url("images/cloud-middle.png");
+  opacity: 0.38;
+  animation-duration: var(--cloud-middle-speed);
+  animation-delay: calc(-1 * var(--cloud-max-speed) / 3);
+}
+
+.cloud-bottom {
+  top: 70%;
+  background-image: url("images/cloud-bottom.png");
+  opacity: 0.55;
+  animation-duration: var(--cloud-max-speed);
+}
+
+@keyframes cloud-drift {
+  from {
+    transform: translateX(calc(-100% + 1px));
+  }
+
+  to {
+    transform: translateX(100vw);
+  }
+}
+
 /* Sunrise band along the bottom of the app. Pinned in px so it keeps its
    footprint at the 2x UI scale. */
 .sunrise {
@@ -827,7 +888,9 @@ body:not(.no-report).syncing main {
 .no-report .data-region::after {
   content: "";
   position: absolute;
-  inset: 0;
+
+  /* Start the veil ~5px above the chain tabs (top of the masked range). */
+  inset: -5px 0 0;
   z-index: 5;
   background: rgb(8 9 14 / 90%);
 }
