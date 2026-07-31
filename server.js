@@ -29,6 +29,12 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const SUMMARY_PATH = path.join(OUT_DIR, "summary.json");
 const OPENAPI_PATH = path.join(__dirname, "docs", "openapi.json");
 
+// Shown when no out/summary.json exists yet — an honest statement of fact (the
+// chains have not been scanned), not a "please wait" that implies a sync is
+// already running when none is.
+const NO_REPORT_MSG =
+  "No report yet — Ethereum and PulseChain haven't been scanned.";
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -91,7 +97,7 @@ function serveStatic(pathname, res) {
 function handleSummary(res) {
   const summary = readJson(SUMMARY_PATH, null);
   if (!summary) {
-    sendJson(res, 404, { error: "No report yet. Wait for sync to complete." });
+    sendJson(res, 404, { error: NO_REPORT_MSG });
     return;
   }
   sendJson(res, 200, summary);
@@ -105,7 +111,7 @@ function handleSummary(res) {
 function handleWhereami(url, res) {
   const summary = readJson(SUMMARY_PATH, null);
   if (!summary) {
-    sendJson(res, 404, { error: "No report yet. Wait for sync to complete." });
+    sendJson(res, 404, { error: NO_REPORT_MSG });
     return;
   }
   const tshares = url.searchParams.get("tshares");

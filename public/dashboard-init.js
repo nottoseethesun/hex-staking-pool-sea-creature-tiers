@@ -32,15 +32,36 @@ function initTabs() {
   }
 }
 
+/**
+ * Render the honest "no data yet" state. Never invents numbers — the data
+ * panels stay hidden until a real report exists — and adapts to whether an
+ * initial sync is running, so it never says "click Sync" mid-sync.
+ * @param {HTMLElement} status
+ */
+async function showNoData(status) {
+  let updating = false;
+  try {
+    const s = await (await fetch("/api/status")).json();
+    updating = s.updating === true;
+  } catch {
+    // Best-effort; fall back to the idle message.
+  }
+  const running =
+    "Initial scan in progress — the pool will appear here when it " +
+    "finishes. Watch the progress badge above.";
+  const idle =
+    "No on-chain data yet. Use Sync (top-right) to scan Ethereum and " +
+    "PulseChain; the first full scan takes a while.";
+  status.textContent = updating ? running : idle;
+}
+
 /** Fetch the summary and populate the data panels. */
 async function load() {
   const status = document.getElementById("status");
   try {
     const res = await fetch("/api/summary");
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      status.textContent =
-        body.error || "No report yet. Wait for sync to complete.";
+      await showNoData(status);
       return;
     }
     summary = await res.json();

@@ -123,11 +123,11 @@ body {
 }
 
 .logo {
-  /* Lock to a square box (the art is 256x256) with object-fit so the hexagon
-     can never render squished, whatever the surrounding line box does. */
-  width: 1em;
+  /* The art is stored at its true aspect ratio (~1.138:1, a flat-top hexagon),
+     so sizing by height with width:auto renders it undistorted. The old squish
+     came from the PNG being saved square (256x256), not from the CSS box. */
   height: 1em;
-  object-fit: contain;
+  width: auto;
   margin-right: 0.2em;
   vertical-align: -0.18em;
 }
