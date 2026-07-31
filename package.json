@@ -35,6 +35,7 @@
     "knip": "knip",
     "api-doc": "node scripts/api-doc.js",
     "show-api-doc": "node scripts/show-api-doc.js",
+    "publish-cache": "node scripts/publish-cache.js",
     "nuke": "rm -rf node_modules package-lock.json && echo 'Nuked node_modules + package-lock.json — run npm install to reinstall'"
   },
   "dependencies": {

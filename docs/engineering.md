@@ -76,6 +76,7 @@ API docs & meta:
 | --- | --- |
 | `npm run api-doc` | Serve the Scalar API reference at `http://127.0.0.1:5556`. |
 | `npm run show-api-doc` | Serve the API reference if needed, then open a browser. |
+| `npm run publish-cache` | Publish the cache as the GitHub Release asset (maintainer; stops/restarts the sync; needs `gh`). |
 | `npm run nuke` | Remove `node_modules` + `package-lock.json`, then reinstall. |
 
 Lifecycle hooks run automatically: `prestart` / `prelint` (regenerate
@@ -159,11 +160,17 @@ no bandwidth cap, free, versioned by tag, beside the code). It is **not**
 committed to the repo: GitHub blocks files over 100 MB, and a regenerable cache
 would bloat history.
 
-**Producing a snapshot** (after a full `hexleague update`):
+**Producing and publishing a snapshot** (maintainer, after a full `hexleague
+update`). `npm run publish-cache` packages `data/eth` + `data/pls`, checksums the
+tarball (SHA-256), and uploads it as the GitHub Release asset with `gh`, then
+prints the `hexleague seed` command to share. If a dashboard sync is running it is
+stopped first (so the tarball is a consistent snapshot) and restarted once the
+asset is pushed. It needs an authenticated `gh` CLI, and tags the release
+`cache-<UTC-date>` unless `--tag` is given:
 
 ```bash
-tar -czf hex-cache.tar.gz -C data eth pls   # archive both chain caches
-sha256sum hex-cache.tar.gz                    # publish this digest alongside it
+npm run publish-cache                  # tag cache-YYYY-MM-DD
+npm run publish-cache -- --tag v1.2    # or choose the tag
 ```
 
 **Seeding from a snapshot** (fresh install, empty `data/`):
