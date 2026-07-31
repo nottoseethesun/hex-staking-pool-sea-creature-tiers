@@ -13,9 +13,10 @@ const { report } = require("./report-cmd");
 const { update } = require("./update-cmd");
 const { whereami } = require("./whereami-cmd");
 const { seed } = require("./seed-cmd");
+const { stop } = require("./stop-cmd");
 const { log } = require("../log");
 
-const COMMANDS = { verify, scan, oa, report, update, whereami, seed };
+const COMMANDS = { verify, scan, oa, report, update, stop, whereami, seed };
 
 const HELP = `hexleague — HEX sea-creature league analysis (read-only)
 
@@ -25,6 +26,7 @@ Usage:
   hexleague oa       --chain eth|pls       OA funding cluster -> data/<chain>/
   hexleague report   [--offline]           reads data/, writes out/
   hexleague update   [--rebuild]           scan + oa + report, both chains
+  hexleague stop                           stop a running dashboard scan
   hexleague seed     --url U --sha256 H    seed data/ from a verified snapshot
   hexleague whereami --address 0x… [--address 0x…] | --tshares N
 

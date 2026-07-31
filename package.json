@@ -16,6 +16,7 @@
     "oa": "node bin/hexleague.js oa",
     "report": "node bin/hexleague.js report",
     "update": "node bin/hexleague.js update",
+    "stop": "node bin/hexleague.js stop",
     "seed": "node bin/hexleague.js seed",
     "whereami": "node bin/hexleague.js whereami",
     "prepare": "husky",

@@ -95,6 +95,7 @@ summary.
 | `oa` | `--chain eth\|pls` `[--rebuild]` | Build the OA funding cluster into `data/<chain>/`. |
 | `report` | `[--offline]` | Build `out/` from the cache (`--offline` = cached tip reads only, no RPC). |
 | `update` | `[--rebuild]` | The whole pipeline: scan → oa → report, both chains. |
+| `stop` | | Stop a scan running in the dashboard (POST /api/update/stop); a foreground `hexleague update` is stopped with Ctrl-C. |
 | `seed` | `--url U --sha256 H` `[--force]` | Seed `data/` from a verified snapshot (`--force` overwrites a non-empty `data/`). |
 | `whereami` | `--address 0x… …` \| `--tshares N` | Locate wallet(s) (summed) or a raw T-Share total. |
 
@@ -211,9 +212,12 @@ before committing.
 
 The core (`src/hexleague.js`) and the HTTP layer (`server.js`) are kept
 deliberately separate, so each is reusable on its own in another project:
-`hexleague.js` is a plain library with no HTTP or UI dependency (`require` it),
-and `server.js` is a thin adapter that maps routes onto it (its `handleRequest`
-can be mounted in another server). The dashboard server (`npm start`, port 3693)
+`hexleague.js` is a plain library with no HTTP or UI dependency: `require` it and
+call `update(ctx)` (run the scan/oa/report pipeline), `stop()` (cancel a run),
+`isRunning()` (is one in flight), or `whereami(summary, query)` (locate a staker).
+`update`, `stop`, and `whereami` are also `hexleague` CLI subcommands; `isRunning`
+is a library-only state query. `server.js` is a thin adapter that maps routes onto
+those methods (its `handleRequest` can be mounted in another server). The dashboard server (`npm start`, port 3693)
 serves a complete JSON API so the app can also be consumed as a dependency by
 other applications, for example to obtain a staker's sea-creature level.
 Endpoints: `GET /api/health`,
@@ -240,7 +244,8 @@ the page. Update `docs/openapi.json` whenever you add or change an endpoint.
 top-up when the cached data is from a prior UTC day); `POST /api/update/stop`
 cancels a run. The dashboard's header **Sync** button starts a scan and, while
 one runs, toggles to **Stop Sync** (calling the stop endpoint); the finder's
-**Update** button is a second start trigger.
+**Update** button is a second start trigger. From a terminal, `hexleague stop`
+POSTs to the same endpoint, so a dashboard scan can be halted without the browser.
 
 Cancellation is cooperative and checkpoint-safe, and it lives in the `hexleague`
 facade (`src/hexleague.js`), not in server.js: `hexleague.update()` runs the
