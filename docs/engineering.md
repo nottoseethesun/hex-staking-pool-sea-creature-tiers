@@ -209,9 +209,14 @@ before committing.
 
 ## HTTP API
 
-The dashboard server (`npm start`, port 3693) also serves a complete, read-only
-JSON API so the app can be consumed as a dependency by other applications — for
-example to obtain a staker's sea-creature level. Endpoints: `GET /api/health`,
+The core (`src/hexleague.js`) and the HTTP layer (`server.js`) are kept
+deliberately separate, so each is reusable on its own in another project:
+`hexleague.js` is a plain library with no HTTP or UI dependency (`require` it),
+and `server.js` is a thin adapter that maps routes onto it (its `handleRequest`
+can be mounted in another server). The dashboard server (`npm start`, port 3693)
+serves a complete JSON API so the app can also be consumed as a dependency by
+other applications, for example to obtain a staker's sea-creature level.
+Endpoints: `GET /api/health`,
 `GET /api/whereami` (the key consumer endpoint — `?tshares=N` or `?address=0x…`),
 `GET /api/summary`, `GET /api/status`, `POST /api/update`,
 `POST /api/update/stop`, `GET /api/disclaimer`, and `GET /api/openapi.json`. The

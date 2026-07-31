@@ -11,9 +11,16 @@
 
 A cached pipeline scans the chain and derives report artefacts from it. The
 `hexleague` CLI and a local, read-only dashboard are two thin front ends over one
-shared core (`src/hexleague.js`); the dashboard adds the UI and HTTP API but holds
-no domain logic. Nothing signs or writes to chain; only the local cache is
-written.
+shared core (`src/hexleague.js`).
+
+The **HTTP API layer (`server.js`) and the workhorse core (`src/hexleague.js`)
+are kept deliberately separate**, so each is reusable on its own as a component
+of another project: `hexleague.js` is a plain library with no HTTP, UI, or server
+dependency (`require` it directly), and `server.js` is a thin adapter that maps
+routes onto it (mount its `handleRequest` in another server). Neither reaches into
+the other.
+
+Nothing signs or writes to chain; only the local cache is written.
 
 ## Data flow
 
