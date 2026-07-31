@@ -143,21 +143,21 @@ verifiable against the chain, a rebuild always reproduces the same state.
 
 ## Seeding the cache (distributing a snapshot)
 
-The `data/<chain>/` cache is regenerable but slow to build from cold — the OA
+The `data/<chain>/` cache is regenerable but slow to build from cold: the OA
 funding scans are tens of thousands of 5,000-block `getLogs` windows against the
-public endpoints (hours per chain). To let a fresh install skip that, the cache
-can be distributed as a snapshot and pulled in with `hexleague seed`.
+public endpoints (hours per chain). So the cache is published as a **GitHub
+Release asset**, and a fresh install pulls it with `hexleague seed`, then tops up
+with `hexleague update`. That is the normal way to stand the tool up, not a
+fallback.
 
 **Size.** A complete cache is ~350–600 MB raw — dominated by `stakes.ndjson` at
 ~95 B/row (~125 MB for ETH's ~1.3M rows). ndjson gzips ~3.3×, so a snapshot
 tarball is roughly **120–180 MB**.
 
-**Where to host it.** A **GitHub Release asset** is the simplest fit: up to
-2 GB/asset, no bandwidth cap, free, versioned by tag, beside the code. For larger
-or delta-synced snapshots, use object storage with a generous free tier and
-cheap/zero egress (Cloudflare R2, Backblaze B2). Do **not** commit the cache:
-GitHub blocks files over 100 MB, and it would bloat history with regenerable
-data.
+**Where it lives.** The snapshot is a **GitHub Release asset** (up to 2 GB/asset,
+no bandwidth cap, free, versioned by tag, beside the code). It is **not**
+committed to the repo: GitHub blocks files over 100 MB, and a regenerable cache
+would bloat history.
 
 **Producing a snapshot** (after a full `hexleague update`):
 
@@ -173,12 +173,11 @@ hexleague seed --url https://…/hex-cache.tar.gz --sha256 <digest>
 ```
 
 `seed` streams the download, verifies the SHA-256 (refusing to extract on any
-mismatch), and unpacks into `data/` (declining to clobber a non-empty `data/`
-without `--force`). Afterwards, `hexleague update` — or the dashboard's
-**Update** button — fetches only the blocks added since the snapshot, bringing
-the local cache up to date. The seed is a shortcut past the cold scan, never a
-trust root: the checksum is the gate, and every row is verifiable against the
-chain.
+mismatch) and unpacks into `data/` (declining to clobber a non-empty `data/`
+without `--force`). Afterwards, `hexleague update` (or the dashboard's **Update**
+button) fetches only the blocks added since the snapshot, bringing the local
+cache up to date. The seed is a shortcut past the cold scan, never a trust root:
+the checksum is the gate, and every row is verifiable against the chain.
 
 ## Chain views vs. scanning (always both chains)
 

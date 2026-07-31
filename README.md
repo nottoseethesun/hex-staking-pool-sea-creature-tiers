@@ -138,42 +138,20 @@ Nothing is written outside the project directory.
 
 ## Usage
 
-After installing:
-
-1. **First run only** — build the initial data set from the chain. This one
-   command runs the full scan (it takes a while the first time and safely
-   resumes from its last checkpoint if interrupted):
-
-   ```bash
-   node bin/hexleague.js update
-   ```
-
-2. **Start the dashboard:**
-
-   ```bash
-   npm start   # then open http://127.0.0.1:3693
-   ```
-
+1. **Start the app.** Run `npm start`, then open `http://127.0.0.1:3693` in a
+   browser.
+2. **Load the pool.** Click **Sync** (top right) to scan Ethereum and PulseChain.
+   The first scan takes a while and resumes from a checkpoint if interrupted;
+   while it runs the button becomes **Stop Sync**. Much of the data is often
+   already cached, so the app is usable right away, and **Sync** later fetches
+   only the blocks added since.
 3. **Find your sea creature.** Enter your total HEX staking-pool T-Shares (or a
    wallet address) and click **Find My Sea Creature Level**. The dashboard shows
-   the Ethereum, PulseChain, and Combined league views. Once the data is more
-   than 24 hours old, the in-dashboard **Update** button refreshes it in place,
-   with a pulsing **Syncing** badge showing live progress. The header **Sync**
-   button starts a scan too and, while one runs, toggles to **Stop Sync** so you
-   can stop it — the scan halts at a checkpoint and resumes on the next start.
+   the Ethereum, PulseChain, and Combined league views.
 
-> **Data freshness.** Much of the on-chain data may already be cached — so you
-> can start right away, though it can be stale. Click the dashboard's **Update**
-> button any time: it fetches only the remaining blocks needed to bring your
-> local cache up to date.
-
-### Command line, configuration & HTTP API
-
-Everything the dashboard does is also available headless — the granular
-`verify → scan → oa → report → whereami` command-line pipeline, all
-configuration and RPC-failover options, and a **full read-only HTTP API** so
-other applications can pull in a staker's sea-creature level programmatically.
-See **[docs/server.md](docs/server.md)**.
+The `hexleague` command-line pipeline is documented in
+[docs/engineering.md](docs/engineering.md); configuration and the HTTP API are in
+[docs/server.md](docs/server.md).
 
 ---
 

@@ -98,7 +98,7 @@ the native fraction is at least the threshold, the wallet is an OA member.
 
 Every OA member in `out/oa_wallets.csv` carries at least one evidence transaction
 hash, plus its hop depth, the wallet that funded it, and its per-asset fractions.
-The list is meant to be independently checkable on a block explorer. Contracts
+The list is independently checkable on a block explorer. Contracts
 encountered along the way are reported separately (they are legitimately non-OA
 but each may represent many underlying holders).
 

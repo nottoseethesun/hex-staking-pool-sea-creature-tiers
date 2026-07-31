@@ -31,7 +31,10 @@ Companion guides:
   lp-ranger template it was cloned from.)
 - **RPC:** ethers v6 (`JsonRpcProvider`, `client.send()` for `trace_filter`).
 - **CLI:** Node built-in `node:util` `parseArgs` (no commander/yargs).
-- **Server:** Node built-in `http` module (`server.js`) — a read-only dashboard.
+- **Core API:** `src/hexleague.js`, one facade (`update`/`stop`/`whereami`) the
+  CLI and server both call, so the scan lifecycle lives in one place.
+- **Server:** Node built-in `http` module (`server.js`): the UI + HTTP layer that
+  delegates each core action to `hexleague`; holds no domain logic.
 - **Dashboard:** native browser ES modules (`public/dashboard-*.js`), no bundler.
 - **Tests:** Node built-in `node:test` + `node:assert/strict`.
 - **Lint/format:** ESLint v10 flat config, Prettier, Stylelint, html-validate,
@@ -44,8 +47,9 @@ Companion guides:
 
 ```text
 bin/hexleague.js         CLI entry (parseArgs dispatch)
-server.js                read-only dashboard server (http module)
+server.js                UI + HTTP layer; delegates core actions to hexleague
 src/
+  hexleague.js           core API facade (update/stop/isRunning/whereami)
   config.js log.js       .env config; opt-in log wrapper (no global patching)
   disclaimer.js          single source of the disclaimer text
   abi/hex.json           vendored HEX ABI (topics/selectors derived at runtime)
@@ -62,7 +66,7 @@ public/                  index.html, style.css, dashboard-*.js (ESM)
 scripts/                 check.js (umbrella gate), build-info.js
 eslint-rules/            no-interpolated-innerhtml, no-secret-logging, no-number-from-bigint
 data/<chain>/            gitignored, immutable scan cache (no TTL)
-out/                     gitignored derived report artifacts
+out/                     gitignored derived report artefacts
 ```
 
 ---

@@ -9,17 +9,20 @@
 
 ## Overview
 
-A CLI pipeline produces an immutable, cached scan of the chain and derives report
-artifacts from it; a read-only dashboard serves those artifacts. Nothing writes
-to chain.
+A cached pipeline scans the chain and derives report artefacts from it. The
+`hexleague` CLI and a local, read-only dashboard are two thin front ends over one
+shared core (`src/hexleague.js`); the dashboard adds the UI and HTTP API but holds
+no domain logic. Nothing signs or writes to chain; only the local cache is
+written.
 
 ## Data flow
 
 `scan` (stake events into `data/<chain>/stakes.ndjson` + a checkpoint) → `oa`
 (forward BFS from the OA into `data/<chain>/oa.json`) → `report` (replay the
 ledgers, read the pinned tip once, and write `out/summary.json`, `report.md`, and
-the CSVs). `whereami` and the dashboard read `out/summary.json` and never touch
-the chain.
+the CSVs). Both the CLI and the dashboard drive this pipeline through
+`hexleague.update()` (cancellable with `hexleague.stop()`); lookups (`whereami`
+and the dashboard) read `out/summary.json` without touching the chain.
 
 ## Layers
 
@@ -35,8 +38,14 @@ the chain.
 - **Report** (`src/report/`): the league ladder (single source of truth), pure
   BigInt formatting, per-view aggregation, and the Markdown / CSV / display
   renderers.
-- **Server** (`server.js`): the static dashboard plus two read-only GET
-  endpoints; the whereami logic is shared with the CLI.
+- **Core API** (`src/hexleague.js`): the one facade both front ends call
+  (`update` / `stop` / `isRunning` / `whereami`), so the scan lifecycle (a single
+  in-process `AbortController`) and lookups live in one place.
+- **CLI** (`bin/hexleague.js`, `src/cli/`): a `parseArgs` dispatch that calls the
+  core API.
+- **Server** (`server.js`): the UI + HTTP layer (static dashboard plus the JSON
+  API) that maps each core action to a `hexleague` method and holds no domain
+  logic.
 
 ## Key decisions
 

@@ -1,9 +1,9 @@
 # Running Headless — CLI Pipeline, Configuration & HTTP API
 
 Everything the dashboard does is also available without a browser. The dashboard
-is a thin, read-only front end over the same pipeline and data files you can
-drive from the command line, and over a small HTTP API that other applications
-can call. This guide covers the granular CLI pipeline, all configuration and RPC
+is a thin, read-only front end over the same `hexleague` core and data files you
+drive from the command line, plus a small HTTP API that other applications can
+call. This guide covers the granular CLI pipeline, all configuration and RPC
 failover, and the HTTP API.
 
 For the dashboard-user quick start, see the [README](../README.md).
