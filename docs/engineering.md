@@ -1,11 +1,103 @@
 # Engineering Reference
 
+## Contents
+
+- [Commands](#commands)
+  - [npm scripts](#npm-scripts)
+  - [The `hexleague` CLI](#the-hexleague-cli)
+- [The check pipeline](#the-check-pipeline)
+- [The cache (`data/<chain>/`)](#the-cache-datachain)
+- [Crash safety and recovery](#crash-safety-and-recovery)
+- [Seeding the cache (distributing a snapshot)](#seeding-the-cache-distributing-a-snapshot)
+- [Chain views vs. scanning (always both chains)](#chain-views-vs-scanning-always-both-chains)
+- [Adding a module](#adding-a-module)
+- [HTTP API](#http-api)
+  - [Starting and stopping a scan](#starting-and-stopping-a-scan)
+- [RPC etiquette](#rpc-etiquette)
+
 ## Commands
 
-`npm run verify | scan | oa | report`, `npm start` (dashboard), `npm run lint`,
-`npm test`, `npm run check`, `npm run api-doc` (serve the API reference),
-`npm run show-api-doc` (serve it if needed, then open a browser). `hexleague` is
-the bin (`node bin/hexleague.js <cmd>`).
+### npm scripts
+
+Invoke with `npm run <name>` (except `npm start` and `npm test`). The chain-data
+scripts are thin wrappers over [the `hexleague` CLI](#the-hexleague-cli) below.
+
+Run & dashboard:
+
+| Command | Purpose |
+| --- | --- |
+| `npm start` | Start the read-only dashboard at `http://127.0.0.1:3693`. |
+| `npm run dev` | Dashboard with `node --watch` (auto-restart on server edits). |
+| `npm run build` | Write `src/build-info.json` (version + commit stamp). |
+
+Chain-data pipeline (thin wrappers over `hexleague`):
+
+| Command | Purpose |
+| --- | --- |
+| `npm run verify` | Check chainId, deploy block, and ABI sanity. |
+| `npm run scan` | Scan / top up the stake ledger into `data/<chain>/`. |
+| `npm run oa` | Build the OA funding cluster into `data/<chain>/`. |
+| `npm run report` | Build `out/` (summary.json, report.md, CSVs) from the cache. |
+| `npm run update` | The whole pipeline: scan → oa → report, both chains. |
+| `npm run seed` | Import a verified cache snapshot. |
+| `npm run whereami` | Locate a T-Share total or address in the leagues. |
+
+Lint & format:
+
+| Command | Purpose |
+| --- | --- |
+| `npm run lint` | Every linter (ESLint, Stylelint, html-validate, markdownlint, Prettier, actionlint). |
+| `npm run lint:html` | Just html-validate on `public/*.html`. |
+| `npm run lint:fix` | Auto-fix what the linters can, in place. |
+| `npm run format` | Prettier `--write` the JS sources. |
+| `npm run format:check` | Prettier `--check` the JS sources. |
+
+Test & gate:
+
+| Command | Purpose |
+| --- | --- |
+| `npm test` | Run the unit tests (`node --test`). |
+| `npm run test:coverage` | Tests with line coverage. |
+| `npm run test:watch` | Tests in watch mode. |
+| `npm run check` | The full gate: lint + audits + tests + >=80% coverage (CI runs this). |
+
+Security audits:
+
+| Command | Purpose |
+| --- | --- |
+| `npm run audit:deps` | `npm audit --audit-level=high`. |
+| `npm run audit:security` | Security-focused ESLint (`eslint-security.config.js`). |
+| `npm run audit:secrets` | secretlint scan for committed secrets. |
+| `npm run knip` | Report unused files, dependencies, and exports. |
+
+API docs & meta:
+
+| Command | Purpose |
+| --- | --- |
+| `npm run api-doc` | Serve the Scalar API reference at `http://127.0.0.1:5556`. |
+| `npm run show-api-doc` | Serve the API reference if needed, then open a browser. |
+| `npm run nuke` | Remove `node_modules` + `package-lock.json`, then reinstall. |
+
+Lifecycle hooks run automatically: `prestart` / `prelint` (regenerate
+build-info) and `prepare` (install husky's git hooks).
+
+### The `hexleague` CLI
+
+`node bin/hexleague.js <command>` (or `hexleague <command>` when the bin is on
+`PATH`). Each subcommand parses its own flags; `hexleague --help` prints a
+summary.
+
+| Command | Flags | Purpose |
+| --- | --- | --- |
+| `verify` | `[--chain eth\|pls]` | chainId, deploy block, ABI sanity (both chains if `--chain` omitted). |
+| `scan` | `--chain eth\|pls` `[--rebuild]` | Scan / top up the stake ledger into `data/<chain>/`. |
+| `oa` | `--chain eth\|pls` `[--rebuild]` | Build the OA funding cluster into `data/<chain>/`. |
+| `report` | `[--offline]` | Build `out/` from the cache (`--offline` = cached tip reads only, no RPC). |
+| `update` | `[--rebuild]` | The whole pipeline: scan → oa → report, both chains. |
+| `seed` | `--url U --sha256 H` `[--force]` | Seed `data/` from a verified snapshot (`--force` overwrites a non-empty `data/`). |
+| `whereami` | `--address 0x… …` \| `--tshares N` | Locate wallet(s) (summed) or a raw T-Share total. |
+
+`--rebuild` discards a chain's cache and rescans from the deploy block.
 
 ## The check pipeline
 

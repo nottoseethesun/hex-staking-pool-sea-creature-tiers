@@ -5,6 +5,20 @@ belongs to the **OA cluster** — the set of wallets funded by the Origin Addres
 (OA) — and is therefore excluded from the sea-creature league pool. It is an
 **estimate**, not ground truth; the limitations are spelled out at the end.
 
+## Contents
+
+- [Why exclude the OA cluster at all](#why-exclude-the-oa-cluster-at-all)
+- [The rule](#the-rule)
+  - [Why 3 hops instead of 1–2](#why-3-hops-instead-of-12)
+  - [Why "20% of inbound", per asset](#why-20-of-inbound-per-asset)
+- [How it is computed (and why it is efficient)](#how-it-is-computed-and-why-it-is-efficient)
+  - [Step 1 — forward funding BFS (numerator)](#step-1--forward-funding-bfs-numerator)
+  - [Step 2 — per-candidate inbound (denominator)](#step-2--per-candidate-inbound-denominator)
+- [Evidence and auditability](#evidence-and-auditability)
+- [Caching](#caching)
+- [Tunables](#tunables)
+- [Limitations — why this is an estimate](#limitations--why-this-is-an-estimate)
+
 ## Why exclude the OA cluster at all
 
 The point of the league report is to describe the *community* staking pool. The

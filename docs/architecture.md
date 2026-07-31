@@ -1,5 +1,12 @@
 # Architecture
 
+## Contents
+
+- [Overview](#overview)
+- [Data flow](#data-flow)
+- [Layers](#layers)
+- [Key decisions](#key-decisions)
+
 ## Overview
 
 A CLI pipeline produces an immutable, cached scan of the chain and derives report

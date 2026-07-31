@@ -16,6 +16,19 @@ local, read-only **HTML dashboard**, and is meant to be run locally.
 
 ---
 
+## Contents
+
+- [1. Definitions](#1-definitions)
+- [2. Constants and endpoints](#2-constants-and-endpoints)
+- [3. Tech stack and project standards](#3-tech-stack-and-project-standards)
+- [4. Stage 1 — stake ledger scan (`scan`)](#4-stage-1--stake-ledger-scan-scan)
+- [5. Stage 2 — pool totals (read calls)](#5-stage-2--pool-totals-read-calls)
+- [6. Stage 3 — OA cluster construction (`oa`)](#6-stage-3--oa-cluster-construction-oa)
+- [7. Stage 4 — classification, aggregation, report (`report`) + dashboard](#7-stage-4--classification-aggregation-report-report--dashboard)
+- [8. Validation (must pass before the report is trusted)](#8-validation-must-pass-before-the-report-is-trusted)
+- [9. Acceptance criteria](#9-acceptance-criteria)
+- [10. Non-goals](#10-non-goals)
+
 ## 1. Definitions
 
 - **T-Share** = 10^12 raw contract "shares". All report figures are in T-Shares

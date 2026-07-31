@@ -23,14 +23,20 @@ Usage:
   hexleague verify   [--chain eth|pls]     chainId, deploy block, ABI sanity
   hexleague scan     --chain eth|pls       stake events -> data/<chain>/
   hexleague oa       --chain eth|pls       OA funding cluster -> data/<chain>/
-  hexleague report                         reads data/, writes out/
+  hexleague report   [--offline]           reads data/, writes out/
   hexleague update   [--rebuild]           scan + oa + report, both chains
   hexleague seed     --url U --sha256 H    seed data/ from a verified snapshot
   hexleague whereami --address 0x… [--address 0x…] | --tshares N
 
+Flags:
+  --chain eth|pls   scan/oa require it; verify checks both if omitted.
+  --rebuild         scan/oa/update: discard the cache and rescan from deploy.
+  --offline         report: build from cache only, no RPC tip read.
+  --force           seed: overwrite a non-empty data/ directory.
+
 Run 'hexleague update' for the whole pipeline (or scan/oa/report individually),
 then whereami or the dashboard (npm start). Data is cached under data/; re-runs
-top up incrementally. Add --rebuild to discard the cache and rescan.`;
+top up incrementally.`;
 
 /** Print CLI usage. */
 function printHelp() {

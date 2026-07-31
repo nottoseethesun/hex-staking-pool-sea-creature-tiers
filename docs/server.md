@@ -10,6 +10,15 @@ For the dashboard-user quick start, see the [README](../README.md).
 
 ---
 
+## Contents
+
+- [Command-Line Pipeline](#command-line-pipeline)
+- [Configuration](#configuration)
+  - [Config files (`config/`)](#config-files-config)
+  - [Environment overrides (`.env`)](#environment-overrides-env)
+  - [RPC failover and backup endpoints](#rpc-failover-and-backup-endpoints)
+- [HTTP API](#http-api)
+
 ## Command-Line Pipeline
 
 The dashboard's one-shot `update` command is a convenience wrapper around a
