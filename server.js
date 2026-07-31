@@ -1,11 +1,12 @@
 /**
  * @file server.js
- * @description Local, read-only dashboard server (Node built-in http). Serves
- * the static dashboard from public/ and two read-only JSON endpoints:
- * GET /api/summary (streams out/summary.json) and GET /api/whereami
- * (?address=…&address=… | ?tshares=N), reusing src/whereami.js so no lookup
- * logic is duplicated in the browser. No state-changing routes, no CSRF, no
- * keys — it only reads the report the CLI produced.
+ * @description The dashboard's UI + HTTP layer (Node built-in http). It serves
+ * the static dashboard from public/ and a small JSON API, and delegates every
+ * core action to the hexleague facade (src/hexleague.js): start a scan
+ * (POST /api/update -> hexleague.update), stop it (POST /api/update/stop ->
+ * hexleague.stop), and locate a staker (GET /api/whereami -> hexleague.whereami).
+ * No domain logic lives here; the read-only endpoints stream the report the
+ * pipeline produced. Localhost bind, no CSRF, no keys.
  */
 
 "use strict";
@@ -15,8 +16,8 @@ const fs = require("fs");
 const path = require("path");
 const { config } = require("./src/config");
 const { log } = require("./src/log");
-const { locate } = require("./src/whereami");
-const { updateStatus, runUpdate } = require("./src/pipeline");
+const { updateStatus } = require("./src/pipeline");
+const hexleague = require("./src/hexleague");
 const {
   readUpdateStatus,
   writeUpdateStatus,
@@ -34,11 +35,6 @@ const OPENAPI_PATH = path.join(__dirname, "docs", "openapi.json");
 // already running when none is.
 const NO_REPORT_MSG =
   "No report yet — Ethereum and PulseChain haven't been scanned.";
-
-// The AbortController for the in-process update, or null when idle. Set when a
-// scan starts (POST /api/update), aborted by POST /api/update/stop, and cleared
-// when the run settles.
-let activeUpdate = null;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -124,7 +120,7 @@ function handleWhereami(url, res) {
   const query =
     tshares !== null ? { tshares } : { addresses: addresses.filter(Boolean) };
   try {
-    sendJson(res, 200, locate(summary, query));
+    sendJson(res, 200, hexleague.whereami(summary, query));
   } catch (err) {
     sendJson(res, 400, { error: err.message });
   }
@@ -162,17 +158,16 @@ function handleUpdate(req, res) {
     sendJson(res, 409, { error: status.reason || "Update not available." });
     return;
   }
-  if (activeUpdate || readUpdateStatus().updating) {
+  if (hexleague.isRunning() || readUpdateStatus().updating) {
     sendJson(res, 409, { error: "An update is already running." });
     return;
   }
   // Seed the shared status so /api/status reflects "updating" immediately;
-  // runUpdate then owns the progress writes and clears the file when done.
+  // the pipeline then owns the progress writes and clears the file when done.
   writeUpdateStatus(0, "Starting");
-  const controller = new AbortController();
-  activeUpdate = controller;
   sendJson(res, 202, { started: true });
-  runUpdate({ config, log, signal: controller.signal })
+  hexleague
+    .update({ config, log })
     .then(() => log.info("[update] complete"))
     .catch((err) => {
       if (err && err.name === "AbortError") {
@@ -180,9 +175,6 @@ function handleUpdate(req, res) {
       } else {
         log.error("[update] failed: %s", err.message);
       }
-    })
-    .finally(() => {
-      if (activeUpdate === controller) activeUpdate = null;
     });
 }
 
@@ -198,11 +190,10 @@ function handleStop(req, res) {
     sendJson(res, 405, { error: "Use POST to stop the scan." });
     return;
   }
-  if (!activeUpdate) {
+  if (!hexleague.stop()) {
     sendJson(res, 409, { error: "No scan is running." });
     return;
   }
-  activeUpdate.abort();
   sendJson(res, 202, { stopping: true });
 }
 

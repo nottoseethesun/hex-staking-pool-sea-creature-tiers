@@ -10,7 +10,7 @@
 const path = require("path");
 const { parseArgs } = require("node:util");
 const { log } = require("../log");
-const { locate } = require("../whereami");
+const hexleague = require("../hexleague");
 const { readJson, OUT_DIR } = require("../cache/store");
 const { DISCLAIMER_SHORT } = require("../disclaimer");
 
@@ -77,7 +77,7 @@ async function whereami(argv) {
     values.tshares !== undefined
       ? { tshares: values.tshares }
       : { addresses: values.address };
-  const out = locate(summary, query);
+  const out = hexleague.whereami(summary, query);
   for (const name of ["eth", "pls", "combined"]) {
     printView(name, out.results[name]);
   }

@@ -231,8 +231,11 @@ cancels a run. The dashboard's header **Sync** button starts a scan and, while
 one runs, toggles to **Stop Sync** (calling the stop endpoint); the finder's
 **Update** button is a second start trigger.
 
-Cancellation is cooperative and checkpoint-safe. The server holds one
-`AbortController` per run and threads its `AbortSignal` down the pipeline. The
+Cancellation is cooperative and checkpoint-safe, and it lives in the `hexleague`
+facade (`src/hexleague.js`), not in server.js: `hexleague.update()` runs the
+pipeline under one `AbortController`, `hexleague.stop()` aborts it, and server.js
+just maps the HTTP routes to those methods. The signal threads down the
+pipeline. The
 two RPC loops that gate every scan phase — `getLogsChunked` (`eth_getLogs`, used
 by the stake scan, the OA forward-BFS, and the inbound-denominator scan) and
 `traceStream` (`trace_filter` native transfers) — call `signal.throwIfAborted()`

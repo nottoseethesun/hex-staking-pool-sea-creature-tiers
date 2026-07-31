@@ -10,7 +10,7 @@
 const { parseArgs } = require("node:util");
 const { config } = require("../config");
 const { log } = require("../log");
-const { runUpdate } = require("../pipeline");
+const hexleague = require("../hexleague");
 const { DISCLAIMER_SHORT } = require("../disclaimer");
 
 /**
@@ -23,7 +23,7 @@ async function update(argv) {
     args: argv,
     options: { rebuild: { type: "boolean", default: false } },
   });
-  await runUpdate({ config, log, force: values.rebuild });
+  await hexleague.update({ config, log, force: values.rebuild });
   log.info("[update] complete — scan + oa + report for both chains");
   log.info(DISCLAIMER_SHORT);
 }
