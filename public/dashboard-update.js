@@ -70,6 +70,30 @@ function syncTitle(s) {
 }
 
 /**
+ * The status message shown while no report is loaded. Owned here (not set once
+ * at render) so it tracks a sync starting or finishing.
+ * @param {boolean} updating
+ * @returns {string}
+ */
+export function noDataText(updating) {
+  return updating
+    ? "Initial scan in progress — the pool will appear here when it " +
+        "finishes. Watch the progress badge above."
+    : "No on-chain data yet. Use Sync (top-right) to scan Ethereum and " +
+        "PulseChain; the first full scan takes a while.";
+}
+
+/**
+ * Keep the no-data message accurate while no report is loaded; a no-op once a
+ * report loads (the data panels own the screen then).
+ * @param {object} s status object from /api/status
+ */
+function updateNoDataMessage(s) {
+  if (!document.body.classList.contains("no-report")) return;
+  document.getElementById("status").textContent = noDataText(s.updating);
+}
+
+/**
  * Apply a status object to the badge + sync buttons.
  * @param {object} s
  */
@@ -78,6 +102,7 @@ function applyStatus(s) {
   const fill = badge.querySelector(".sync-fill");
   const label = badge.querySelector(".sync-label");
   badge.hidden = false;
+  updateNoDataMessage(s);
   if (s.updating) {
     sawUpdating = true;
     document.body.classList.add("syncing");

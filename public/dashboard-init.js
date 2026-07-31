@@ -7,7 +7,7 @@
 
 import { renderView } from "./dashboard-render.js";
 import { initFinder } from "./dashboard-whereami.js";
-import { initSync } from "./dashboard-update.js";
+import { initSync, noDataText } from "./dashboard-update.js";
 import { initDisclaimer, initHelp } from "./dashboard-help.js";
 
 const DATA_PANELS = ["headlinePanel", "tierPanel", "topPanel"];
@@ -39,20 +39,17 @@ function initTabs() {
  * @param {HTMLElement} status
  */
 async function showNoData(status) {
-  let updating = false;
+  // Veil the data-dependent region and show the status message above it. The
+  // message text (idle vs. syncing) is owned by noDataText so the status poll
+  // keeps it accurate as a sync starts or finishes.
+  document.body.classList.add("no-report");
+  status.hidden = false;
   try {
     const s = await (await fetch("/api/status")).json();
-    updating = s.updating === true;
+    status.textContent = noDataText(s.updating === true);
   } catch {
-    // Best-effort; fall back to the idle message.
+    status.textContent = noDataText(false);
   }
-  const running =
-    "Initial scan in progress — the pool will appear here when it " +
-    "finishes. Watch the progress badge above.";
-  const idle =
-    "No on-chain data yet. Use Sync (top-right) to scan Ethereum and " +
-    "PulseChain; the first full scan takes a while.";
-  status.textContent = updating ? running : idle;
 }
 
 /** Fetch the summary and populate the data panels. */
@@ -69,10 +66,12 @@ async function load() {
       summary.disclaimer || "";
     document.getElementById("buildInfo").textContent =
       `Ethereum tip ${summary.chains.eth.block} · PulseChain tip ${summary.chains.pls.block}`;
+    document.body.classList.remove("no-report");
     status.hidden = true;
     for (const id of DATA_PANELS) document.getElementById(id).hidden = false;
     render();
   } catch (err) {
+    document.body.classList.add("no-report");
     status.textContent = `Failed to load report: ${err.message}`;
   }
 }

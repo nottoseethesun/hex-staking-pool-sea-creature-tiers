@@ -28,6 +28,9 @@
   --panel-border: rgb(255 15 111 / 22%);
   --text: #e8edf5;
   --muted: #9fb0c4;
+
+  /* Standard warning-yellow, adopted from lp-ranger's "in progress" banner. */
+  --warn-yellow: #d4a017;
   --sans: system-ui, -apple-system, "Segoe UI", roboto, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", menlo, monospace;
 }
@@ -46,8 +49,10 @@ body {
   overflow-x: hidden;
 }
 
-/* Drifting clouds: soft radial-gradient wisps, blurred, slowly repositioned. */
-.sky {
+/* Drifting sky clouds — done as in lp-ranger: four blurred radial-gradient
+   wisps on a body::before layer (no cloud elements), slowly repositioned. */
+body::before {
+  content: "";
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -55,14 +60,27 @@ body {
   background-image:
     radial-gradient(
       60% 18% at 15% 22%,
-      rgb(150 165 190 / 10%),
-      transparent 70%
+      rgb(120 130 150 / 10%),
+      rgb(120 130 150 / 0%) 70%
     ),
-    radial-gradient(50% 14% at 55% 12%, rgb(140 155 185 / 8%), transparent 70%),
-    radial-gradient(70% 20% at 82% 34%, rgb(160 170 200 / 9%), transparent 70%),
-    radial-gradient(45% 16% at 35% 48%, rgb(150 140 180 / 7%), transparent 70%);
+    radial-gradient(
+      50% 14% at 55% 12%,
+      rgb(110 120 145 / 8%),
+      rgb(110 120 145 / 0%) 70%
+    ),
+    radial-gradient(
+      70% 20% at 82% 30%,
+      rgb(130 140 160 / 9%),
+      rgb(130 140 160 / 0%) 70%
+    ),
+    radial-gradient(
+      45% 16% at 35% 45%,
+      rgb(115 110 140 / 7%),
+      rgb(115 110 140 / 0%) 70%
+    );
   background-repeat: no-repeat;
   filter: blur(6px);
+  opacity: 0.9;
   animation: drift-clouds 300s linear infinite alternate;
 }
 
@@ -170,8 +188,14 @@ main {
 }
 
 .status {
+  /* Cap to the app's normal content width so a long message wraps here instead
+     of running edge-to-edge; sits above the data mask as a warning banner. */
+  max-width: 1100px;
+  margin: 0.75rem auto 0.5rem;
+  padding: 0 1.5rem;
+  font-weight: 600;
+  color: var(--warn-yellow);
   text-align: center;
-  color: var(--muted);
 }
 
 .panel {
@@ -781,10 +805,31 @@ thead th {
   border: 1px solid var(--panel-border);
 }
 
-/* ── UI disabled while an update is running ── */
-.syncing main {
+/* ── UI dimmed while an update refreshes ALREADY-LOADED data ── */
+body:not(.no-report).syncing main {
   pointer-events: none;
   opacity: 0.5;
+}
+
+/* ── No-report mask ──
+   When no report is loaded, veil the data-dependent region (the chain tabs and
+   every panel) at 90% and disable it in one shot — no piecemeal per-button
+   disabling. The status message sits above this region, and the header
+   Sync/Help live outside it, so both stay fully visible and clickable. */
+.data-region {
+  position: relative;
+}
+
+.no-report .data-region {
+  pointer-events: none;
+}
+
+.no-report .data-region::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgb(8 9 14 / 90%);
 }
 
 /* T-Shares finder input: a compact eight-character-wide box. */

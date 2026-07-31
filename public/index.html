@@ -26,13 +26,6 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body class="locked">
-    <div class="sky" aria-hidden="true">
-      <div class="cloud cloud-a"></div>
-      <div class="cloud cloud-b"></div>
-      <div class="cloud cloud-c"></div>
-      <div class="cloud cloud-d"></div>
-    </div>
-
     <header class="site-header">
       <div class="header-bar">
         <h1>
@@ -93,146 +86,153 @@
     </header>
 
     <main>
-      <nav class="views" aria-label="Chain view">
-        <button type="button" class="view-tab" data-view="eth">Ethereum</button>
-        <button type="button" class="view-tab" data-view="pls">
-          PulseChain
-        </button>
-        <button type="button" class="view-tab is-active" data-view="combined">
-          Combined
-        </button>
-        <span class="info-wrap">
-          <button
-            type="button"
-            class="info-btn"
-            aria-label="About the chain views"
-          >
-            i
-          </button>
-          <span class="info-tip" role="tooltip">
-            These buttons only change which ranking you're viewing. This app
-            <strong>always scans both</strong> Ethereum and PulseChain — choosing
-            a view never starts, stops, or limits a blockchain scan.
-          </span>
-        </span>
-      </nav>
-
       <p id="status" class="status" role="status">Loading report…</p>
-
-      <section class="panel" id="headlinePanel" hidden>
-        <h2>Pool at a glance</h2>
-        <dl class="headline">
-          <div>
-            <dt>As of (ETH)</dt>
-            <dd id="asofEth">—</dd>
-          </div>
-          <div>
-            <dt>As of (PLS)</dt>
-            <dd id="asofPls">—</dd>
-          </div>
-          <div>
-            <dt>Pool total</dt>
-            <dd id="poolTotal">—</dd>
-          </div>
-          <div>
-            <dt>Non-OA pool</dt>
-            <dd id="poolNonOa">—</dd>
-          </div>
-          <div>
-            <dt>OA excluded</dt>
-            <dd id="oaExcluded">—</dd>
-          </div>
-          <div>
-            <dt>Non-OA stakers</dt>
-            <dd id="stakerCount">—</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="panel" id="wherePanel">
-        <h2>Find Your Sea Creature</h2>
-        <form id="whereForm" class="where-form">
-          <div class="field">
-            <div class="label-row">
-              <label for="whereTshares"
-                >Your total HEX Staking Pool T-Shares</label
-              >
-              <span class="info-wrap">
-                <button
-                  type="button"
-                  id="tsharesInfoBtn"
-                  class="info-btn"
-                  aria-label="Show T-Share details"
-                  title="Show details"
-                >
-                  i
-                </button>
-              </span>
-            </div>
-            <input
-              id="whereTshares"
-              class="tshares-input"
-              name="tshares"
-              type="text"
-              inputmode="decimal"
-              autocomplete="off"
-              size="8"
-              placeholder="e.g. 42.5"
-            />
-          </div>
-          <div id="creatureDisplay" class="creature-display" aria-live="polite">
-            <span class="creature-tbd">TBD</span>
-          </div>
-          <div class="where-buttons">
-            <button type="submit">Find My Sea Creature Level</button>
-            <button type="button" id="updateBtn" class="update-btn" disabled>
-              Update
+      <div id="dataRegion" class="data-region">
+        <nav class="views" aria-label="Chain view">
+          <button type="button" class="view-tab" data-view="eth">
+            Ethereum
+          </button>
+          <button type="button" class="view-tab" data-view="pls">
+            PulseChain
+          </button>
+          <button type="button" class="view-tab is-active" data-view="combined">
+            Combined
+          </button>
+          <span class="info-wrap">
+            <button
+              type="button"
+              class="info-btn"
+              aria-label="About the chain views"
+            >
+              i
             </button>
+            <span class="info-tip" role="tooltip">
+              These buttons only change which ranking you're viewing. This app
+              <strong>always scans both</strong> Ethereum and PulseChain —
+              choosing a view never starts, stops, or limits a blockchain scan.
+            </span>
+          </span>
+        </nav>
+
+        <section class="panel" id="headlinePanel" hidden>
+          <h2>Pool at a glance</h2>
+          <dl class="headline">
+            <div>
+              <dt>As of (ETH)</dt>
+              <dd id="asofEth">—</dd>
+            </div>
+            <div>
+              <dt>As of (PLS)</dt>
+              <dd id="asofPls">—</dd>
+            </div>
+            <div>
+              <dt>Pool total</dt>
+              <dd id="poolTotal">—</dd>
+            </div>
+            <div>
+              <dt>Non-OA pool</dt>
+              <dd id="poolNonOa">—</dd>
+            </div>
+            <div>
+              <dt>OA excluded</dt>
+              <dd id="oaExcluded">—</dd>
+            </div>
+            <div>
+              <dt>Non-OA stakers</dt>
+              <dd id="stakerCount">—</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel" id="wherePanel">
+          <h2>Find Your Sea Creature</h2>
+          <form id="whereForm" class="where-form">
+            <div class="field">
+              <div class="label-row">
+                <label for="whereTshares"
+                  >Your total HEX Staking Pool T-Shares</label
+                >
+                <span class="info-wrap">
+                  <button
+                    type="button"
+                    id="tsharesInfoBtn"
+                    class="info-btn"
+                    aria-label="Show T-Share details"
+                    title="Show details"
+                  >
+                    i
+                  </button>
+                </span>
+              </div>
+              <input
+                id="whereTshares"
+                class="tshares-input"
+                name="tshares"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                size="8"
+                placeholder="e.g. 42.5"
+              />
+            </div>
+            <div
+              id="creatureDisplay"
+              class="creature-display"
+              aria-live="polite"
+            >
+              <span class="creature-tbd">TBD</span>
+            </div>
+            <div class="where-buttons">
+              <button type="submit">Find My Sea Creature Level</button>
+              <button type="button" id="updateBtn" class="update-btn" disabled>
+                Update
+              </button>
+            </div>
+          </form>
+          <div id="whereResult" class="where-result" aria-live="polite"></div>
+        </section>
+
+        <section class="panel" id="tierPanel" hidden>
+          <h2>Sea Creature Table</h2>
+          <p class="hint">
+            You belong to the highest tier whose
+            <strong>Min T-Shares</strong> you meet or exceed.
+          </p>
+          <div class="table-scroll">
+            <table id="tierTable">
+              <thead>
+                <tr>
+                  <th scope="col">League</th>
+                  <th scope="col">% of pool</th>
+                  <th scope="col">Min T-Shares (≥)</th>
+                  <th scope="col">Wallets</th>
+                  <th scope="col">Cumulative</th>
+                  <th scope="col">Tier T-Shares</th>
+                  <th scope="col">Tier % of pool</th>
+                </tr>
+              </thead>
+              <tbody id="tierBody"></tbody>
+            </table>
           </div>
-        </form>
-        <div id="whereResult" class="where-result" aria-live="polite"></div>
-      </section>
+        </section>
 
-      <section class="panel" id="tierPanel" hidden>
-        <h2>Sea Creature Table</h2>
-        <p class="hint">
-          You belong to the highest tier whose <strong>Min T-Shares</strong> you
-          meet or exceed.
-        </p>
-        <div class="table-scroll">
-          <table id="tierTable">
-            <thead>
-              <tr>
-                <th scope="col">League</th>
-                <th scope="col">% of pool</th>
-                <th scope="col">Min T-Shares (≥)</th>
-                <th scope="col">Wallets</th>
-                <th scope="col">Cumulative</th>
-                <th scope="col">Tier T-Shares</th>
-                <th scope="col">Tier % of pool</th>
-              </tr>
-            </thead>
-            <tbody id="tierBody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel" id="topPanel" hidden>
-        <h2>Top 50 non-OA stakers</h2>
-        <div class="table-scroll">
-          <table id="topTable">
-            <thead>
-              <tr>
-                <th scope="col">Rank</th>
-                <th scope="col">Address</th>
-                <th scope="col">T-Shares</th>
-                <th scope="col">League</th>
-              </tr>
-            </thead>
-            <tbody id="topBody"></tbody>
-          </table>
-        </div>
-      </section>
+        <section class="panel" id="topPanel" hidden>
+          <h2>Top 50 non-OA stakers</h2>
+          <div class="table-scroll">
+            <table id="topTable">
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Address</th>
+                  <th scope="col">T-Shares</th>
+                  <th scope="col">League</th>
+                </tr>
+              </thead>
+              <tbody id="topBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </main>
 
     <div class="sunrise" aria-hidden="true"></div>
@@ -257,18 +257,18 @@
             rel="noopener noreferrer"
             >plscharts.com/portfolio</a
           >. Include every format you hold: HEX native stakes (sometimes called
-          HEX solo stakes), HEX Stake Instances (HSIs), and "Pooled Stakes" — the
-          generic term for the non-native, non-HSI formats, such as Maximus DAO
-          tokens ($MAXI) and Pool Party tokens.
+          HEX solo stakes), HEX Stake Instances (HSIs), and "Pooled Stakes" —
+          the generic term for the non-native, non-HSI formats, such as Maximus
+          DAO tokens ($MAXI) and Pool Party tokens.
         </p>
         <h3>Where the Data Comes From</h3>
         <p>
-          This app reads on-chain data directly from the HEX contract on Ethereum
-          and PulseChain over JSON-RPC — no third-party indexers or APIs. It
-          caches what it scans, so much may already be available locally (though
-          it can be stale). The <strong>Update</strong> button fetches only the
-          blocks added since the last saved cache, closing the gap to the current
-          chain tip.
+          This app reads on-chain data directly from the HEX contract on
+          Ethereum and PulseChain over JSON-RPC — no third-party indexers or
+          APIs. It caches what it scans, so much may already be available
+          locally (though it can be stale). The <strong>Update</strong> button
+          fetches only the blocks added since the last saved cache, closing the
+          gap to the current chain tip.
         </p>
         <div class="modal-actions">
           <button type="button" id="howCloseBtn">Close</button>
@@ -287,9 +287,7 @@
       <div class="modal-box">
         <h2 id="donateTitle">Donate</h2>
         <p>Please note, donors must not have any expectation of any result.</p>
-        <p>
-          Send Pulse ($PLS), Ether ($ETH), or the token of your choice to:
-        </p>
+        <p>Send Pulse ($PLS), Ether ($ETH), or the token of your choice to:</p>
         <p class="donate-addr-row">
           <span class="donate-addr" id="donateAddr"
             >0x52Cf7B0c566B3Bae5d42038dc357dbC9Ab4207D5</span
