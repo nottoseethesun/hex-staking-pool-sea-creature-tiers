@@ -3,8 +3,9 @@
 ## Commands
 
 `npm run verify | scan | oa | report`, `npm start` (dashboard), `npm run lint`,
-`npm test`, `npm run check`. `hexleague` is the bin
-(`node bin/hexleague.js <cmd>`).
+`npm test`, `npm run check`, `npm run api-doc` (serve the API reference),
+`npm run show-api-doc` (serve it if needed, then open a browser). `hexleague` is
+the bin (`node bin/hexleague.js <cmd>`).
 
 ## The check pipeline
 
@@ -20,7 +21,33 @@ Immutable, no TTL. `deploy-block.json`; `stakes.ndjson` (append-only minimal
 rows) + `checkpoint.json` (resume cursor with a `schemaVersion`); `oa.json` +
 `codes.json`; `tip.json`. Re-running a step tops up only new blocks; a `--rebuild`
 flag discards a chain's ledger. Delete `data/` for a clean rescan. The derived
-`out/` artifacts are pure functions of the cache plus one pinned-tip read.
+`out/` artefacts are pure functions of the cache plus one pinned-tip read.
+
+## Crash safety and recovery
+
+The cache is written to survive an abrupt halt — SIGTERM, `kill`, a crash, or the
+scan's own **Stop Sync** — without corruption:
+
+- **JSON is written atomically.** `writeJson` writes a temp file and `rename`s it
+  into place, so `checkpoint.json`, `oa.json`, `codes.json`, `tip.json`, and the
+  `out/summary.json` artefact are always either the previous complete file or the
+  next one — never a half-written document.
+- **The ledger heals a torn tail.** `stakes.ndjson` is the only append-only file,
+  so its sole failure mode is a partial final line if the process dies
+  mid-append. The next scan calls `truncatePartialLine` to drop an unterminated
+  trailing line; the checkpoint re-scans that dropped block window, and
+  `buildActiveShares` dedups by `staker:stakeId`, so no row is lost or doubled.
+- **Progress is checkpointed per block window**, so a halt resumes from the last
+  completed window instead of restarting.
+
+**Limitation — power loss.** `rename` is atomic with respect to other processes,
+but the tool does not `fsync`, so a sudden **power outage** (unlike a clean kill)
+can still lose or truncate an in-flight write at the filesystem level and leave a
+`data/<chain>/` file corrupt. There is no automatic repair for that case: delete
+the affected file — or the whole `data/<chain>/` directory — and re-run
+`hexleague scan` / `oa` (the cache is fully regenerable), or restore it from a
+snapshot (see the next section). Because the cache is immutable and every row is
+verifiable against the chain, a rebuild always reproduces the same state.
 
 ## Seeding the cache (distributing a snapshot)
 
@@ -96,11 +123,13 @@ Stand up the interactive API reference (rendered with Scalar — the modern,
 maintained OpenAPI reference — self-hosted from `node_modules`, no CDN):
 
 ```bash
-npm run api-doc
+npm run show-api-doc   # serve it (if not already) and open a browser
 ```
 
-Then open `http://127.0.0.1:5556`. The reference reads `docs/openapi.json`; update
-that file whenever you add or change an endpoint.
+`npm run api-doc` serves the reference at `http://127.0.0.1:5556`, reading
+`docs/openapi.json` live so it is always current (no separate build);
+`npm run show-api-doc` starts that server only if it is not already up and opens
+the page. Update `docs/openapi.json` whenever you add or change an endpoint.
 
 ### Starting and stopping a scan
 

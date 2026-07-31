@@ -34,6 +34,7 @@
     "audit:secrets": "secretlint \"src/**/*.js\" \"bin/**/*.js\" \"scripts/**/*.js\" \"server.js\" \".env*\" \"*.json\"",
     "knip": "knip",
     "api-doc": "node scripts/api-doc.js",
+    "show-api-doc": "node scripts/show-api-doc.js",
     "nuke": "rm -rf node_modules package-lock.json && echo 'Nuked node_modules + package-lock.json — run npm install to reinstall'"
   },
   "dependencies": {
