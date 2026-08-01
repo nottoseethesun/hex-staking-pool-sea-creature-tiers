@@ -83,6 +83,7 @@ npm run resolve  # HSI + $MAXI resolution (needs --chain; --rebuild to reset)
 npm run oa       # OA funding cluster (needs --chain; --rebuild to reset)
 npm run report   # reads data/, writes out/ (summary.json, report.md, CSVs)
 npm start        # local read-only dashboard at http://127.0.0.1:3693
+npm stop         # stop the dashboard server (SIGTERM via its PID file)
 npm run lint     # ESLint + Stylelint + html-validate + markdownlint + prettier + actionlint
 npm test         # node --test
 npm run check    # the full gate (lint + audits + tests + >=80% coverage)

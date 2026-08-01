@@ -130,7 +130,8 @@ first run.
 
 ## Uninstall
 
-Stop the dashboard (Ctrl+C), then remove the directory:
+Stop the dashboard (Ctrl+C, or `npm stop` from another terminal), then remove the
+directory:
 
 ```bash
 rm -rf hex-staking-pool-sea-creature-tiers*
@@ -152,6 +153,11 @@ Nothing is written outside the project directory.
 3. **Find your sea creature.** Enter your total HEX staking-pool T-Shares (or a
    wallet address) and click **Find My Sea Creature Level**. The dashboard shows
    the Ethereum, PulseChain, and Combined league views.
+
+To stop the dashboard, press **Ctrl+C** in its terminal, or run **`npm stop`**
+from another terminal — the counterpart to `npm start`. That stops the server; to
+cancel only a running scan and leave the dashboard up, use `npm run scan:stop`
+(the same as `hexleague stop`).
 
 The `hexleague` command-line pipeline is documented in
 [docs/engineering.md](docs/engineering.md); configuration and the HTTP API are in

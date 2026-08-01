@@ -25,6 +25,7 @@ const {
 } = require("./src/update-status");
 const { DISCLAIMER } = require("./src/disclaimer");
 const { readJson, OUT_DIR } = require("./src/cache/store");
+const { pidPath, writePid, clearPid } = require("./src/server-pid");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const SUMMARY_PATH = path.join(OUT_DIR, "summary.json");
@@ -255,13 +256,21 @@ function handleRequest(req, res) {
  */
 function start() {
   const server = http.createServer(handleRequest);
+  const pidFile = pidPath(config);
   server.listen(config.port, config.host, () => {
+    writePid(pidFile);
     log.info(
       "hexleague dashboard: http://%s:%d (read-only)",
       config.host,
       config.port,
     );
   });
+  const shutdown = () => {
+    clearPid(pidFile);
+    process.exit(0);
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
   return server;
 }
 

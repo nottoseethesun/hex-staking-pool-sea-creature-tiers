@@ -13,6 +13,7 @@
 - [Adding a module](#adding-a-module)
 - [HTTP API](#http-api)
   - [Starting and stopping a scan](#starting-and-stopping-a-scan)
+  - [Stopping the server](#stopping-the-server)
 - [RPC etiquette](#rpc-etiquette)
 
 ## Commands
@@ -27,6 +28,7 @@ Run & dashboard:
 | Command | Purpose |
 | --- | --- |
 | `npm start` | Start the read-only dashboard at `http://127.0.0.1:3693`. |
+| `npm stop` | Stop the dashboard server (SIGTERM via its PID file). |
 | `npm run dev` | Dashboard with `node --watch` (auto-restart on server edits). |
 | `npm run build` | Write `src/build-info.json` (version + commit stamp). |
 
@@ -249,7 +251,9 @@ top-up when the cached data is from a prior UTC day); `POST /api/update/stop`
 cancels a run. The dashboard's header **Sync** button starts a scan and, while
 one runs, toggles to **Stop Sync** (calling the stop endpoint); the finder's
 **Update** button is a second start trigger. From a terminal, `hexleague stop`
-POSTs to the same endpoint, so a dashboard scan can be halted without the browser.
+(also `npm run scan:stop`) POSTs to the same endpoint, so a dashboard scan can be
+halted without the browser. That stops the *scan* only; to stop the whole server,
+see [Stopping the server](#stopping-the-server).
 
 Cancellation is cooperative and checkpoint-safe, and it lives in the `hexleague`
 facade (`src/hexleague.js`), not in server.js: `hexleague.update()` runs the
@@ -270,6 +274,29 @@ failure. A stop mid-OA discards only that chain's in-progress OA computation —
 the OA cluster is not incrementally checkpointed — so there is no cache
 corruption, just recomputation on the next run. Only one update runs at a time;
 a second `POST /api/update` while one is active returns `409`.
+
+### Stopping the server
+
+There is deliberately **no shutdown HTTP route** — the server exposes only
+read-only reads plus scan start/stop, so a "kill the process" endpoint would widen
+the surface for no benefit. `npm start` starts the server; **`npm stop`**
+(`scripts/stop.js`) stops it by signalling the process directly:
+
+- On `listen`, the server writes its PID to a file under the OS temp directory,
+  keyed by port (`src/server-pid.js`, e.g. `/tmp/hexleague-server-3693.pid`), and
+  removes it on `SIGINT` / `SIGTERM` / exit — so Ctrl+C cleans up too.
+- `npm stop` reads that PID file and sends `SIGTERM` (the same clean shutdown as
+  Ctrl+C), waits briefly, confirms the process exited, and clears the file. If no
+  live PID file is found it reports the server is not running.
+- It is **cache-safe even mid-scan**: the cache is written to survive a hard stop
+  (atomic JSON writes + the self-healing ledger; see [Crash safety and
+  recovery](#crash-safety-and-recovery)), so a stopped scan simply recomputes its
+  in-progress OA / resolve work on the next run.
+
+The PID-file helpers (`pidPath` / `writePid` / `readPid` / `clearPid`) are one
+small module shared by the server and the stop script, so the path is defined
+once. To cancel only a running **scan** and keep the server up, use `hexleague
+stop` / `npm run scan:stop` instead (previous section).
 
 ## RPC etiquette
 
