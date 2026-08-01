@@ -29,7 +29,7 @@
   --text: #e8edf5;
   --muted: #9fb0c4;
 
-  /* Standard warning-yellow, adopted from lp-ranger's "in progress" banner. */
+  /* Standard warning-yellow "in progress" banner. */
   --warn-yellow: #d4a017;
   --sans: system-ui, -apple-system, "Segoe UI", roboto, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", menlo, monospace;
@@ -49,8 +49,8 @@ body {
   overflow-x: hidden;
 }
 
-/* Drifting sky clouds — done as in lp-ranger: four blurred radial-gradient
-   wisps on a body::before layer (no cloud elements), slowly repositioned. */
+/* Drifting sky clouds: four blurred radial-gradient wisps on a body::before
+   layer (no cloud elements), slowly repositioned. */
 body::before {
   content: "";
   position: fixed;
@@ -102,9 +102,9 @@ body::before {
   }
 }
 
-/* ── Drifting clouds (as in lp-ranger): three PNG cloud layers that slowly
-   traverse the screen at layered speeds + opacities for atmospheric depth
-   (nearer clouds denser, farther ones fainter). ── */
+/* ── Drifting clouds: three PNG cloud layers that slowly traverse the screen
+   at layered speeds + opacities for atmospheric depth (nearer clouds denser,
+   farther ones fainter). ── */
 .cloud {
   /* Bottom cloud = fastest; middle and top are each slowed by the factor
      again, so all three speeds re-derive from these two knobs. */

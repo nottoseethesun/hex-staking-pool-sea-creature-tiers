@@ -28,8 +28,7 @@ Companion guides:
 
 - **Runtime:** Node.js >= 22, vanilla **JavaScript (CommonJS)** — no framework,
   no build step for the server. (The spec's TypeScript/Vitest/viem wording is a
-  stylistic default; this repo's conventions take precedence and match the
-  lp-ranger template it was cloned from.)
+  stylistic default; this repo's conventions take precedence.)
 - **RPC:** ethers v6 (`JsonRpcProvider`, `client.send()` for `trace_filter`).
 - **CLI:** Node built-in `node:util` `parseArgs` (no commander/yargs).
 - **Core API:** `src/hexleague.js`, one facade (`update`/`stop`/`whereami`) the
