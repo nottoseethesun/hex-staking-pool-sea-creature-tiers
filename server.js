@@ -140,7 +140,7 @@ function handleStatus(res) {
     updating: live.updating,
     progress: live.progress,
     phase: live.phase,
-    etaSeconds: etaSeconds(live.progress, started, Date.now()),
+    etaSeconds: etaSeconds(started, live.samples, Date.now()),
   });
 }
 
