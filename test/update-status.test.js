@@ -10,6 +10,7 @@ const {
   clearUpdateStatus,
   readUpdateStatus,
   etaSeconds,
+  pushSample,
   isAlive,
 } = require("../src/update-status");
 
@@ -81,11 +82,56 @@ test("startedAt is stamped once and preserved across ticks (same pid)", () => {
   fs.rmSync(file, { force: true });
 });
 
-test("etaSeconds extrapolates remaining time, or null when too early", () => {
-  // 60s elapsed at 50% done -> ~60s remaining.
-  assert.equal(etaSeconds(0.5, 1_000_000, 1_060_000), 60);
-  // Under ~1% done -> not meaningful yet.
-  assert.equal(etaSeconds(0.005, 1_000_000, 1_060_000), null);
-  // No start time.
-  assert.equal(etaSeconds(0.5, null, 1_060_000), null);
+test("etaSeconds: null during the first 2 minutes (warmup)", () => {
+  const now = 1_000_000;
+  const samples = [
+    { t: now - 60_000, p: 0.1 },
+    { t: now, p: 0.2 },
+  ];
+  // started 90s ago -> under the 2-min warmup -> no estimate yet.
+  assert.equal(etaSeconds(now - 90_000, samples, now), null);
+});
+
+test("etaSeconds: after warmup, uses the recent-window rate", () => {
+  const now = 1_000_000;
+  // 0.1 of progress over the trailing 120s -> remaining 0.8 takes 960s.
+  const samples = [
+    { t: now - 120_000, p: 0.1 },
+    { t: now, p: 0.2 },
+  ];
+  assert.equal(etaSeconds(now - 300_000, samples, now), 960);
+});
+
+test("etaSeconds: null with no start, one sample, or no progress", () => {
+  const now = 1_000_000;
+  const flat = [
+    { t: now - 120_000, p: 0.2 },
+    { t: now, p: 0.2 },
+  ];
+  assert.equal(etaSeconds(null, flat, now), null); // no start time
+  assert.equal(etaSeconds(now - 300_000, [{ t: now, p: 0.2 }], now), null);
+  assert.equal(etaSeconds(now - 300_000, flat, now), null); // no progress (dp=0)
+});
+
+test("pushSample downsamples close ticks and prunes the old window", () => {
+  const t0 = 1_000_000;
+  let s = pushSample([], t0, 0.1);
+  s = pushSample(s, t0 + 1000, 0.15); // < 3s gap -> replaces the last sample
+  assert.equal(s.length, 1);
+  assert.equal(s[0].p, 0.15);
+  s = pushSample(s, t0 + 5000, 0.2); // >= 3s -> appends
+  assert.equal(s.length, 2);
+  s = pushSample(s, t0 + 200_000, 0.9); // jump past the 2-min window
+  assert.equal(s[s.length - 1].p, 0.9);
+  assert.ok(s.length >= 2);
+});
+
+test("a fresh live run has no ETA yet (under the 2-min warmup)", () => {
+  const file = tmp("warmup");
+  writeUpdateStatus(0.3, "Resolving eth", file);
+  const s = readUpdateStatus(file);
+  assert.ok(Array.isArray(s.samples) && s.samples.length >= 1);
+  const started = Date.parse(s.startedAt);
+  assert.equal(etaSeconds(started, s.samples, Date.now()), null);
+  fs.rmSync(file, { force: true });
 });
