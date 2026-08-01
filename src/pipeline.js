@@ -4,8 +4,10 @@
  * chains — shared by the CLI `update` command and the dashboard Update button,
  * plus the pure freshness computation that decides whether an update is offered.
  * Progress is weighted by each stage's estimated remaining block-work (read from
- * the live tip + cache up front), so a fully-cached stage occupies ~0% of the
- * bar and the ETA stays accurate on incremental resumes, not just fresh runs.
+ * the live tip + cache up front) — with the OA stages scaled up for their much
+ * higher per-block cost, so the bar approximates time, not raw block count. A
+ * fully-cached stage occupies ~0% of the bar, and the ETA reflects the slow OA
+ * work ahead before it starts, not just once it's underway.
  */
 
 "use strict";
@@ -33,10 +35,21 @@ function utcDay(ms) {
 const REPORT_WORK = 150000;
 
 /**
+ * How much more wall-clock an OA (`trace_filter`) block costs than a scan/resolve
+ * (`eth_getLogs`) block. The OA stages' block-work is scaled by this so the
+ * progress bar approximates time and the ETA accounts for the slow OA work before
+ * it starts — the one thing the recent-rate ETA can't do on its own, since it
+ * can only measure the stage it's already in. A single rough constant is
+ * deliberate (good to about +/-30%, not exact); once OA is running the recent-rate
+ * ETA measures its true speed directly, so this only shapes the pre-OA estimate.
+ */
+const OA_TIME_COST = 20;
+
+/**
  * Normalize raw per-stage block-work into weights that sum to 1. When nothing is
  * left to do everywhere, all weight falls on the (always-run) report stage.
- * @param {{scanEth:number, oaEth:number, scanPls:number, oaPls:number,
- *   report:number}} work
+ * @param {{scanEth:number, resolveEth:number, oaEth:number, scanPls:number,
+ *   resolvePls:number, oaPls:number, report:number}} work
  * @returns {object} same keys, normalized to sum 1
  */
 function stageWeights(work) {
@@ -88,7 +101,8 @@ async function estimateChainWork(client, chainKey, config, force) {
 }
 
 /**
- * Weight the five pipeline stages by estimated remaining block-work.
+ * Weight the seven pipeline stages by estimated remaining time: raw block-work,
+ * with the OA stages scaled by OA_TIME_COST for their higher per-block cost.
  * @param {object} config
  * @param {{eth:object, pls:object}} clients
  * @param {boolean} force
@@ -100,10 +114,10 @@ async function planStages(config, clients, force) {
   return stageWeights({
     scanEth: eth.scan,
     resolveEth: eth.resolve,
-    oaEth: eth.oa,
+    oaEth: eth.oa * OA_TIME_COST,
     scanPls: pls.scan,
     resolvePls: pls.resolve,
-    oaPls: pls.oa,
+    oaPls: pls.oa * OA_TIME_COST,
     report: REPORT_WORK,
   });
 }
