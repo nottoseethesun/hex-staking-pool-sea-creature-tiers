@@ -14,6 +14,7 @@ belongs to the **OA cluster** — the set of wallets funded by the Origin Addres
 - [How it is computed (and why it is efficient)](#how-it-is-computed-and-why-it-is-efficient)
   - [Step 1 — forward funding BFS (numerator)](#step-1--forward-funding-bfs-numerator)
   - [Step 2 — per-candidate inbound (denominator)](#step-2--per-candidate-inbound-denominator)
+- [Wrapped stakes and the OA](#wrapped-stakes-and-the-oa)
 - [Evidence and auditability](#evidence-and-auditability)
 - [Caching](#caching)
 - [Tunables](#tunables)
@@ -94,6 +95,27 @@ inbound value (HEX via `Transfer` to-position logs; native via `trace_filter`
 `oaInflow / totalInbound`, guarded against divide-by-zero. If the HEX fraction or
 the native fraction is at least the threshold, the wallet is an OA member.
 
+## Wrapped stakes and the OA
+
+Before OA classification, each active stake is re-attributed to its true holder
+(the `resolve` stage), so the OA rule is applied to the real owner:
+
+- **HSIs (HEX Staking Instances).** An HSI's on-chain staker is the HSI contract,
+  not the human. The resolve stage maps each active HSI to its owner (via the
+  HSIM), so an OA-cluster wallet's HSI-held stakes are excluded together with its
+  native stakes.
+- **$MAXI (Maximus).** $MAXI does **not** skim yield, so the OA can plausibly
+  hold it. Rather than treat the pool as one entity, the tool looks *through* it:
+  MAXI's wrapped T-Shares are distributed to $MAXI token holders pro-rata by
+  balance and merged into each holder's address. The OA cluster's pro-rata share
+  is then excluded by the same OA-set removal that drops native and HSI stakes —
+  no separate calculation. $MAXI held by a contract (e.g. a DEX liquidity pair) is
+  attributed to that contract and not looked through further.
+- **Yield-skimming wrappers** (those that harvest a cut of the stakes' $HDRN,
+  etc.) are assumed to hold negligible OA value — the OA's own stakes are large
+  enough that it has no need of them — and are left as ordinary contract stakers
+  for now (addable to the look-through registry later).
+
 ## Evidence and auditability
 
 Every OA member in `out/oa_wallets.csv` carries at least one evidence transaction
@@ -131,6 +153,10 @@ stake-ledger scan).
   caught. This is a deliberate trade to avoid tainting entire exchange order
   books.
 - **Hop cap.** Funding four or more hops removed from the OA is out of scope.
+- **Wrapped-stake look-through depth.** HSI stakes resolve to their owner and
+  $MAXI resolves to its token holders, but a wrapper token held *by another
+  contract* (a DEX pair, another pool) is attributed to that contract, not looked
+  through to its underlying holders.
 - **Tip sensitivity.** Membership is computed as of a pinned tip; later transfers
   can change it on the next run.
 

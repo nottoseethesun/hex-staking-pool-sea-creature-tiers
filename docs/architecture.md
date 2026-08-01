@@ -24,12 +24,15 @@ Nothing signs or writes to chain; only the local cache is written.
 
 ## Data flow
 
-`scan` (stake events into `data/<chain>/stakes.ndjson` + a checkpoint) → `oa`
+`scan` (stake events into `data/<chain>/stakes.ndjson` + a checkpoint) →
+`resolve` (HSI ownership via the HSIM + $MAXI per-holder look-through into
+`data/<chain>/resolution.json`, so stakes attribute to their true holders) → `oa`
 (forward BFS from the OA into `data/<chain>/oa.json`) → `report` (replay the
-ledgers, read the pinned tip once, and write `out/summary.json`, `report.md`, and
-the CSVs). Both the CLI and the dashboard drive this pipeline through
-`hexleague.update()` (cancellable with `hexleague.stop()`); lookups (`whereami`
-and the dashboard) read `out/summary.json` without touching the chain.
+ledgers, apply the resolution, read the pinned tip once, and write
+`out/summary.json`, `report.md`, and the CSVs). Both the CLI and the dashboard
+drive this pipeline through `hexleague.update()` (cancellable with
+`hexleague.stop()`); lookups (`whereami` and the dashboard) read
+`out/summary.json` without touching the chain.
 
 ## Layers
 
@@ -40,6 +43,11 @@ and the dashboard) read `out/summary.json` without touching the chain.
 - **Scan / cache** (`src/scan/`, `src/cache/`): an append-only NDJSON ledger, a
   resume checkpoint, and an immutable no-TTL cache; the active-shares map is
   replayed on demand rather than stored.
+- **Resolve** (`src/resolve/`): re-attributes each active stake to its true
+  holder — Native stakes pass through, HSI stakes re-key to the HSIM-resolved
+  owner, and the $MAXI wrapper is looked through to its token holders pro-rata
+  (exact BigInt, rounding dust conserved). A pure resolver over cached scan
+  inputs plus per-kind T-Share subtotals.
 - **OA** (`src/oa/`): funding-graph primitives, the BFS, per-asset attribution,
   and orchestration.
 - **Report** (`src/report/`): the league ladder (single source of truth), pure

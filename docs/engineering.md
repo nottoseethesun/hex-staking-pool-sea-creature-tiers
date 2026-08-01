@@ -13,6 +13,7 @@
 - [Adding a module](#adding-a-module)
 - [HTTP API](#http-api)
   - [Starting and stopping a scan](#starting-and-stopping-a-scan)
+  - [Stopping the server](#stopping-the-server)
 - [RPC etiquette](#rpc-etiquette)
 
 ## Commands
@@ -27,6 +28,7 @@ Run & dashboard:
 | Command | Purpose |
 | --- | --- |
 | `npm start` | Start the read-only dashboard at `http://127.0.0.1:3693`. |
+| `npm stop` | Stop the dashboard server (SIGTERM via its PID file). |
 | `npm run dev` | Dashboard with `node --watch` (auto-restart on server edits). |
 | `npm run build` | Write `src/build-info.json` (version + commit stamp). |
 
@@ -36,9 +38,10 @@ Chain-data pipeline (thin wrappers over `hexleague`):
 | --- | --- |
 | `npm run verify` | Check chainId, deploy block, and ABI sanity. |
 | `npm run scan` | Scan / top up the stake ledger into `data/<chain>/`. |
+| `npm run resolve` | Resolve HSI ownership + $MAXI look-through into `data/<chain>/`. |
 | `npm run oa` | Build the OA funding cluster into `data/<chain>/`. |
 | `npm run report` | Build `out/` (summary.json, report.md, CSVs) from the cache. |
-| `npm run update` | The whole pipeline: scan → oa → report, both chains. |
+| `npm run update` | The whole pipeline: scan → resolve → oa → report, both chains. |
 | `npm run seed` | Import a verified cache snapshot. |
 | `npm run whereami` | Locate a T-Share total or address in the leagues. |
 
@@ -92,9 +95,10 @@ summary.
 | --- | --- | --- |
 | `verify` | `[--chain eth\|pls]` | chainId, deploy block, ABI sanity (both chains if `--chain` omitted). |
 | `scan` | `--chain eth\|pls` `[--rebuild]` | Scan / top up the stake ledger into `data/<chain>/`. |
+| `resolve` | `--chain eth\|pls` `[--rebuild]` | Resolve HSI ownership (via the HSIM) + $MAXI look-through into `data/<chain>/`. |
 | `oa` | `--chain eth\|pls` `[--rebuild]` | Build the OA funding cluster into `data/<chain>/`. |
 | `report` | `[--offline]` | Build `out/` from the cache (`--offline` = cached tip reads only, no RPC). |
-| `update` | `[--rebuild]` | The whole pipeline: scan → oa → report, both chains. |
+| `update` | `[--rebuild]` | The whole pipeline: scan → resolve → oa → report, both chains. |
 | `stop` | | Stop a scan running in the dashboard (POST /api/update/stop); a foreground `hexleague update` is stopped with Ctrl-C. |
 | `seed` | `--url U --sha256 H` `[--force]` | Seed `data/` from a verified snapshot (`--force` overwrites a non-empty `data/`). |
 | `whereami` | `--address 0x… …` \| `--tshares N` | Locate wallet(s) (summed) or a raw T-Share total. |
@@ -112,7 +116,9 @@ aside during the test run and restores them in a `finally`.
 ## The cache (`data/<chain>/`)
 
 Immutable, no TTL. `deploy-block.json`; `stakes.ndjson` (append-only minimal
-rows) + `checkpoint.json` (resume cursor with a `schemaVersion`); `oa.json` +
+rows) + `checkpoint.json` (resume cursor with a `schemaVersion`);
+`resolution.json` (the active-HSI → owner map plus each look-through wrapper's
+holder balances + supply, recomputed when the pinned tip moves); `oa.json` +
 `codes.json`; `tip.json`. Re-running a step tops up only new blocks; a `--rebuild`
 flag discards a chain's ledger. Delete `data/` for a clean rescan. The derived
 `out/` artefacts are pure functions of the cache plus one pinned-tip read.
@@ -190,9 +196,9 @@ the checksum is the gate, and every row is verifiable against the chain.
 ## Chain views vs. scanning (always both chains)
 
 The app **always scans both Ethereum and PulseChain.** The scan set is never
-conditioned on a chain selection — `hexleague update`/`scan`/`oa` process both
-chains, and the report bakes all three views (`eth`, `pls`, `combined`) into
-`out/summary.json` in a single pass.
+conditioned on a chain selection — `hexleague update`/`scan`/`resolve`/`oa`
+process both chains, and the report bakes all three views (`eth`, `pls`,
+`combined`) into `out/summary.json` in a single pass.
 
 The dashboard's **Ethereum / PulseChain / Combined** buttons are a purely
 client-side **display filter**: they only choose which pre-computed ranking the
@@ -245,7 +251,9 @@ top-up when the cached data is from a prior UTC day); `POST /api/update/stop`
 cancels a run. The dashboard's header **Sync** button starts a scan and, while
 one runs, toggles to **Stop Sync** (calling the stop endpoint); the finder's
 **Update** button is a second start trigger. From a terminal, `hexleague stop`
-POSTs to the same endpoint, so a dashboard scan can be halted without the browser.
+(also `npm run scan:stop`) POSTs to the same endpoint, so a dashboard scan can be
+halted without the browser. That stops the *scan* only; to stop the whole server,
+see [Stopping the server](#stopping-the-server).
 
 Cancellation is cooperative and checkpoint-safe, and it lives in the `hexleague`
 facade (`src/hexleague.js`), not in server.js: `hexleague.update()` runs the
@@ -253,8 +261,9 @@ pipeline under one `AbortController`, `hexleague.stop()` aborts it, and server.j
 just maps the HTTP routes to those methods. The signal threads down the
 pipeline. The
 two RPC loops that gate every scan phase — `getLogsChunked` (`eth_getLogs`, used
-by the stake scan, the OA forward-BFS, and the inbound-denominator scan) and
-`traceStream` (`trace_filter` native transfers) — call `signal.throwIfAborted()`
+by the stake scan, the resolve HSIM + wrapper-token scans, the OA forward-BFS,
+and the inbound-denominator scan) and `traceStream` (`trace_filter` native
+transfers) — call `signal.throwIfAborted()`
 at the top of each block window, and the BFS-hop and inbound-batch loops check
 between iterations. The stake ledger's checkpoint is written after each window,
 so a stop lands on a clean, resumable cursor and a later start tops up from
@@ -265,6 +274,29 @@ failure. A stop mid-OA discards only that chain's in-progress OA computation —
 the OA cluster is not incrementally checkpointed — so there is no cache
 corruption, just recomputation on the next run. Only one update runs at a time;
 a second `POST /api/update` while one is active returns `409`.
+
+### Stopping the server
+
+There is deliberately **no shutdown HTTP route** — the server exposes only
+read-only reads plus scan start/stop, so a "kill the process" endpoint would widen
+the surface for no benefit. `npm start` starts the server; **`npm stop`**
+(`scripts/stop.js`) stops it by signalling the process directly:
+
+- On `listen`, the server writes its PID to a file under the OS temp directory,
+  keyed by port (`src/server-pid.js`, e.g. `/tmp/hexleague-server-3693.pid`), and
+  removes it on `SIGINT` / `SIGTERM` / exit — so Ctrl+C cleans up too.
+- `npm stop` reads that PID file and sends `SIGTERM` (the same clean shutdown as
+  Ctrl+C), waits briefly, confirms the process exited, and clears the file. If no
+  live PID file is found it reports the server is not running.
+- It is **cache-safe even mid-scan**: the cache is written to survive a hard stop
+  (atomic JSON writes + the self-healing ledger; see [Crash safety and
+  recovery](#crash-safety-and-recovery)), so a stopped scan simply recomputes its
+  in-progress OA / resolve work on the next run.
+
+The PID-file helpers (`pidPath` / `writePid` / `readPid` / `clearPid`) are one
+small module shared by the server and the stop script, so the path is defined
+once. To cancel only a running **scan** and keep the server up, use `hexleague
+stop` / `npm run scan:stop` instead (previous section).
 
 ## RPC etiquette
 

@@ -26,5 +26,4 @@ Companion to `CLAUDE.md` — the formatting and lint rules most easily missed.
 - CSS lives in external files; no inline `style` blocks and no inline
   `style="..."` beyond dynamic JS-set values.
 - CSS class and id names must begin with a letter, never a numeric character —
-  numeric-leading selectors require awkward escaping (the mistake lp-ranger made
-  with its `9mm-` prefix).
+  numeric-leading selectors require awkward escaping.

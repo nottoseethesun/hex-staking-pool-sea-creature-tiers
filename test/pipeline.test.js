@@ -49,12 +49,21 @@ test("the stalest chain (oldest UTC day) drives staleness", () => {
 test("stageWeights normalizes block-work; a cached stage gets ~0 of the bar", () => {
   const w = stageWeights({
     scanEth: 0,
+    resolveEth: 0,
     oaEth: 100,
     scanPls: 100,
+    resolvePls: 0,
     oaPls: 100,
     report: 10,
   });
-  const total = w.scanEth + w.oaEth + w.scanPls + w.oaPls + w.report;
+  const total =
+    w.scanEth +
+    w.resolveEth +
+    w.oaEth +
+    w.scanPls +
+    w.resolvePls +
+    w.oaPls +
+    w.report;
   assert.equal(Math.round(total * 1000) / 1000, 1);
   assert.equal(w.scanEth, 0);
   assert.ok(w.scanPls > w.report);
@@ -63,8 +72,10 @@ test("stageWeights normalizes block-work; a cached stage gets ~0 of the bar", ()
 test("stageWeights with only report work puts all weight on report", () => {
   const w = stageWeights({
     scanEth: 0,
+    resolveEth: 0,
     oaEth: 0,
     scanPls: 0,
+    resolvePls: 0,
     oaPls: 0,
     report: 150000,
   });
@@ -74,8 +85,10 @@ test("stageWeights with only report work puts all weight on report", () => {
 test("stageWeights guards divide-by-zero on all-zero work", () => {
   const w = stageWeights({
     scanEth: 0,
+    resolveEth: 0,
     oaEth: 0,
     scanPls: 0,
+    resolvePls: 0,
     oaPls: 0,
     report: 0,
   });

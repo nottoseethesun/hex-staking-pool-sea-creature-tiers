@@ -10,6 +10,7 @@
 
 const contracts = require("../../config/contracts.json");
 const chains = require("../../config/chains.json");
+const entities = require("../../config/entities.json");
 
 /** HEX contract address (identical on Ethereum and PulseChain). */
 const HEX_CONTRACT = contracts.hexContract;
@@ -35,6 +36,16 @@ const CHAINS = Object.fromEntries(
 /** Ordered list of valid chain keys. */
 const CHAIN_KEYS = Object.keys(CHAINS);
 
+/** HSIM (HEX Stake Instance Manager) address per chain (EIP-55, may be null). */
+const HSIM_BY_CHAIN = Object.fromEntries(
+  Object.entries(entities).map(([key, e]) => [key, e.hsim ?? null]),
+);
+
+/** Look-through wrapper tokens per chain (e.g. $MAXI on eth). */
+const WRAPPERS_BY_CHAIN = Object.fromEntries(
+  Object.entries(entities).map(([key, e]) => [key, e.wrappers ?? []]),
+);
+
 module.exports = {
   HEX_CONTRACT,
   ORIGIN_ADDRESS,
@@ -42,4 +53,6 @@ module.exports = {
   HEARTS_PER_HEX,
   CHAINS,
   CHAIN_KEYS,
+  HSIM_BY_CHAIN,
+  WRAPPERS_BY_CHAIN,
 };
