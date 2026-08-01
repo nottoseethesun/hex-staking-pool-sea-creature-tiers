@@ -12,6 +12,10 @@ stake's T-Shares per wallet, sets aside the Origin-Address (OA) funding cluster,
 and shows you the **sea-creature league** breakdown of the staking pool — for
 Ethereum, PulseChain, and the two combined.
 
+It attributes **wrapped stakes** to their real owners — HSI stakes to the wallet
+that holds them, and the Maximus **$MAXI** pool looked through to its token
+holders — so pooled positions don't distort the league.
+
 Every staker can find themselves in the **Sea Creature Table** from their own
 T-Share total, from 🔱 Prosperous Poseidon at the top down through 🐋 Winning
 Whale, 🦈 Super Shark, 🐬 Dabbing Dolphin, 🦑 Swifty Squid, 🐢 Tinkering Turtle,
@@ -209,7 +213,7 @@ Presented for direction only, with no commitment:
 | Item | Description |
 | ---- | ----------- |
 | Historical snapshots | Optionally retain per-tip summaries to chart league drift over time. |
-| Contract-staker labeling | Resolve known pooled-staking contracts (Maximus, Hedron) to friendlier labels. |
+| More wrapped-stake coverage | HSIs and Maximus $MAXI resolve today; extend the look-through registry to sibling Maximus pools and other wrappers. |
 | Configurable ladders | Allow alternate threshold ladders alongside the canonical one. |
 
 ---

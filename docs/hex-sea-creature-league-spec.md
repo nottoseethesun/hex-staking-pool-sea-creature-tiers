@@ -22,6 +22,7 @@ local, read-only **HTML dashboard**, and is meant to be run locally.
 - [2. Constants and endpoints](#2-constants-and-endpoints)
 - [3. Tech stack and project standards](#3-tech-stack-and-project-standards)
 - [4. Stage 1 — stake ledger scan (`scan`)](#4-stage-1--stake-ledger-scan-scan)
+- [4a. Wrapped-stake resolution (`resolve`)](#4a-wrapped-stake-resolution-resolve)
 - [5. Stage 2 — pool totals (read calls)](#5-stage-2--pool-totals-read-calls)
 - [6. Stage 3 — OA cluster construction (`oa`)](#6-stage-3--oa-cluster-construction-oa)
 - [7. Stage 4 — classification, aggregation, report (`report`) + dashboard](#7-stage-4--classification-aggregation-report-report--dashboard)
@@ -38,6 +39,14 @@ local, read-only **HTML dashboard**, and is meant to be run locally.
   `StakeEnd`, and not good-accounted. `StakeGoodAccounting` removes a stake's
   shares from the global pool even though the row persists until `StakeEnd` —
   treat GA'd stakes as 0 shares from the GA block onward.
+- **Stake kind / resolved holder** — a stake's on-chain `stakerAddr` is not
+  always the human owner, so each active stake is attributed by kind: a **Native
+  HEX Stake** (staker is the holder) is used as-is; an **HSI** (staker is a HEX
+  Stake Instance contract) is re-keyed to its owner resolved via the HSIM; and the
+  **$MAXI** wrapper (staker is the Maximus pool contract) is looked *through* to
+  its ERC-20 holders, distributing the pool's wrapped T-Shares pro-rata by token
+  balance (exact BigInt; rounding dust kept under the pool address so the total is
+  conserved). The `resolve` stage (§4a) builds these mappings.
 - **OA cluster** (the exclusion set): a staking wallet is OA when it is
   **>= 20% funded by the OA within <= 3 hops** of the funding tree, for **either**
   asset (HEX or native coin), plus the Origin Address itself. Contracts are
@@ -108,6 +117,7 @@ Read functions used: `globalInfo()`, `currentDay()`, `stakeCount(address)`,
   ```text
   hexleague verify   [--chain eth|pls]
   hexleague scan     --chain eth|pls [--rebuild]
+  hexleague resolve  --chain eth|pls [--rebuild]
   hexleague oa       --chain eth|pls [--rebuild]
   hexleague report
   hexleague whereami --address 0x… [--address 0x…] | --tshares N
@@ -151,6 +161,33 @@ concurrency; progress is emitted per window.
 
 ---
 
+## 4a. Wrapped-stake resolution (`resolve`)
+
+Runs between `scan` and `oa`, scanned to the same pinned tip, writing
+`data/<chain>/resolution.json` (reused while the tip is unchanged, like
+`oa.json`):
+
+1. **HSI ownership.** Replay the HSIM's ownership log (`HSIStart`, `HSITransfer`,
+   `HSITokenize` / `HSIDetokenize`, the ERC-721 `Transfer`, and `HSIEnd`, in one
+   filtered `eth_getLogs`, in chronological order) to map each active HSI contract
+   to its current owner (untokenized = the `hsiLists` owner; tokenized = the NFT
+   holder). The HSIM has the same address on both chains.
+2. **$MAXI look-through.** Reconstruct $MAXI holder balances (and supply = Σ
+   balances) from its ERC-20 `Transfer` log. Distribute the pool's wrapped
+   T-Shares `T_maxi` to holders as `floor(balance_i × T_maxi / supply)`; keep the
+   rounding remainder under the pool address so Σ is conserved exactly. A $MAXI
+   holder that is itself a contract (e.g. a DEX pair) is attributed to that
+   contract, not looked through further.
+3. The pure resolver re-keys the replayed active-shares map to resolved holders
+   and records per-kind T-Share subtotals (native / hsi / wrapped) for the report
+   and a sanity check (`native + hsi + wrapped == Σ active == globalInfo`).
+
+Because the look-through is a share-conserving re-key, §8.1 reconciliation
+(computed on the raw ledger) is unaffected. HSIM and wrapper addresses live in
+`config/entities.json`, so more non-skim wrappers can be added there.
+
+---
+
 ## 5. Stage 2 — pool totals (read calls)
 
 At the pinned tip block, capture `globalInfo()` (`stakeSharesTotal` index 5,
@@ -164,7 +201,9 @@ for reconciliation (§8) and report headers.
 ## 6. Stage 3 — OA cluster construction (`oa`)
 
 Build the OA cluster per the rule in §1 and the methodology in
-[oa-wallet-estimation.md](oa-wallet-estimation.md):
+[oa-wallet-estimation.md](oa-wallet-estimation.md). Candidate stakers are the
+**resolved** holders from §4a, so an OA wallet's HSI-held and $MAXI-derived
+T-Shares are excluded together with its native stakes:
 
 1. **Forward BFS from the OA** to `OA_MAX_HOPS`, over HEX `Transfer` (from-topic
    filter) and native `trace_filter` (`fromAddress`, includes internal
@@ -201,10 +240,12 @@ chains' active shares):
      the actual HEX required); it is omitted for the Combined view (two share
      rates).
    - `leagues_{eth,pls,combined}.csv` — the full non-OA ranking (rank, address,
-     tshares, pct_of_nonoa_pool, percentile, league, is_contract, oa_flag).
+     tshares, pct_of_nonoa_pool, percentile, league, is_contract, oa_flag,
+     label).
    - `oa_wallets.csv` — the evidence-backed OA cluster.
    - `summary.json` — machine-readable everything above (thresholds, rankings,
-     pre-formatted display strings); powers `whereami` and the dashboard.
+     pre-formatted display strings, per-chain stake-kind subtotals, and entity
+     labels); powers `whereami` and the dashboard.
 5. **Self-lookup — `hexleague whereami`**: input one or more `--address` (summed)
    or a raw `--tshares N`; output per view the T-Share total, tier, rank among
    non-OA stakers, percentile, and T-Share distance to the next tier up. OA
@@ -236,8 +277,8 @@ chains' active shares):
 ## 9. Acceptance criteria
 
 - [ ] `npm run lint`, `npm test`, and `npm run check` all pass clean.
-- [ ] The pipeline `verify → scan (eth, pls) → oa (eth, pls) → report` completes
-      end-to-end with only the two RPC URLs configured.
+- [ ] The pipeline `verify → scan → resolve → oa → report` (both chains)
+      completes end-to-end with only the two RPC URLs configured.
 - [ ] Reconciliation (§8.1) holds exactly on both chains.
 - [ ] Interrupting any scan mid-run and re-invoking resumes without data loss.
 - [ ] `out/report.md` contains all three views, each with a complete Sea Creature
@@ -257,4 +298,7 @@ chains' active shares):
 - No USD pricing, no historical time series.
 - No 4+ hop funding propagation, no clustering heuristics beyond the funding rule
   in §1.
+- No look-through of a wrapper token held **by another contract** (a DEX pair,
+  another pool) to its underlying holders; such a holding is attributed to that
+  contract. Only HSIs and configured non-skim wrappers ($MAXI) are resolved.
 - No writes to chain; read-only RPC throughout — the tool holds no keys.

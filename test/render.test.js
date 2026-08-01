@@ -6,6 +6,7 @@ const { buildSummary } = require("../src/report/summary");
 const { renderMarkdown } = require("../src/report/markdown");
 const { leaguesCsv, oaWalletsCsv } = require("../src/report/csv");
 const { buildDisplay } = require("../src/report/display");
+const { stakeKindsBlock } = require("../src/report/report");
 const { buildMembers, memberAddressSet } = require("../src/oa/oa");
 
 const T = 10n ** 12n;
@@ -53,6 +54,15 @@ test("leaguesCsv has a header and ranked rows", () => {
   assert.ok(lines.length >= 3);
 });
 
+test("leaguesCsv appends a label column from the labels map", () => {
+  const view = fixtureSummary().views.eth;
+  const labels = { [A.toLowerCase()]: { label: "MAXI", kind: "wrapped" } };
+  const csv = leaguesCsv(view, {}, labels);
+  const lines = csv.trim().split("\n");
+  assert.match(lines[0], /,label$/);
+  assert.match(csv, /MAXI/);
+});
+
 test("oaWalletsCsv renders evidence-backed members", () => {
   const csv = oaWalletsCsv({
     eth: {
@@ -81,6 +91,20 @@ test("buildDisplay produces tier + top display strings", () => {
   assert.ok(d.top.length >= 1);
   assert.match(d.poolTotalTShares, /[0-9]/);
   assert.equal(d.top[0].contract, "yes");
+});
+
+test("stakeKindsBlock formats per-kind subtotals and their total", () => {
+  const b = stakeKindsBlock({
+    native: 100n * T,
+    hsi: 3n * T,
+    wrapped: { MAXI: 2n * T },
+  });
+  assert.equal(b.native.raw, (100n * T).toString());
+  assert.equal(b.hsi.raw, (3n * T).toString());
+  assert.equal(b.wrapped.total.raw, (2n * T).toString());
+  assert.equal(b.wrapped.byLabel.MAXI.raw, (2n * T).toString());
+  assert.equal(b.total.raw, (105n * T).toString());
+  assert.match(b.total.tshares, /105/);
 });
 
 test("buildMembers flags a candidate over the per-asset threshold", () => {

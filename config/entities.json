@@ -1,0 +1,16 @@
+{
+  "eth": {
+    "hsim": "0x8BD3d1472A656e312E94fB1BbdD599B8C51D18e3",
+    "wrappers": [
+      {
+        "token": "0x0d86EB9f43C57f6FF3BC9E23D8F9d82503f0e84b",
+        "label": "MAXI",
+        "lookThrough": true
+      }
+    ]
+  },
+  "pls": {
+    "hsim": "0x8BD3d1472A656e312E94fB1BbdD599B8C51D18e3",
+    "wrappers": []
+  }
+}

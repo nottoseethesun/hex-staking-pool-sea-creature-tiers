@@ -36,9 +36,10 @@ Chain-data pipeline (thin wrappers over `hexleague`):
 | --- | --- |
 | `npm run verify` | Check chainId, deploy block, and ABI sanity. |
 | `npm run scan` | Scan / top up the stake ledger into `data/<chain>/`. |
+| `npm run resolve` | Resolve HSI ownership + $MAXI look-through into `data/<chain>/`. |
 | `npm run oa` | Build the OA funding cluster into `data/<chain>/`. |
 | `npm run report` | Build `out/` (summary.json, report.md, CSVs) from the cache. |
-| `npm run update` | The whole pipeline: scan → oa → report, both chains. |
+| `npm run update` | The whole pipeline: scan → resolve → oa → report, both chains. |
 | `npm run seed` | Import a verified cache snapshot. |
 | `npm run whereami` | Locate a T-Share total or address in the leagues. |
 
@@ -92,9 +93,10 @@ summary.
 | --- | --- | --- |
 | `verify` | `[--chain eth\|pls]` | chainId, deploy block, ABI sanity (both chains if `--chain` omitted). |
 | `scan` | `--chain eth\|pls` `[--rebuild]` | Scan / top up the stake ledger into `data/<chain>/`. |
+| `resolve` | `--chain eth\|pls` `[--rebuild]` | Resolve HSI ownership (via the HSIM) + $MAXI look-through into `data/<chain>/`. |
 | `oa` | `--chain eth\|pls` `[--rebuild]` | Build the OA funding cluster into `data/<chain>/`. |
 | `report` | `[--offline]` | Build `out/` from the cache (`--offline` = cached tip reads only, no RPC). |
-| `update` | `[--rebuild]` | The whole pipeline: scan → oa → report, both chains. |
+| `update` | `[--rebuild]` | The whole pipeline: scan → resolve → oa → report, both chains. |
 | `stop` | | Stop a scan running in the dashboard (POST /api/update/stop); a foreground `hexleague update` is stopped with Ctrl-C. |
 | `seed` | `--url U --sha256 H` `[--force]` | Seed `data/` from a verified snapshot (`--force` overwrites a non-empty `data/`). |
 | `whereami` | `--address 0x… …` \| `--tshares N` | Locate wallet(s) (summed) or a raw T-Share total. |
@@ -112,7 +114,9 @@ aside during the test run and restores them in a `finally`.
 ## The cache (`data/<chain>/`)
 
 Immutable, no TTL. `deploy-block.json`; `stakes.ndjson` (append-only minimal
-rows) + `checkpoint.json` (resume cursor with a `schemaVersion`); `oa.json` +
+rows) + `checkpoint.json` (resume cursor with a `schemaVersion`);
+`resolution.json` (the active-HSI → owner map plus each look-through wrapper's
+holder balances + supply, recomputed when the pinned tip moves); `oa.json` +
 `codes.json`; `tip.json`. Re-running a step tops up only new blocks; a `--rebuild`
 flag discards a chain's ledger. Delete `data/` for a clean rescan. The derived
 `out/` artefacts are pure functions of the cache plus one pinned-tip read.
@@ -190,9 +194,9 @@ the checksum is the gate, and every row is verifiable against the chain.
 ## Chain views vs. scanning (always both chains)
 
 The app **always scans both Ethereum and PulseChain.** The scan set is never
-conditioned on a chain selection — `hexleague update`/`scan`/`oa` process both
-chains, and the report bakes all three views (`eth`, `pls`, `combined`) into
-`out/summary.json` in a single pass.
+conditioned on a chain selection — `hexleague update`/`scan`/`resolve`/`oa`
+process both chains, and the report bakes all three views (`eth`, `pls`,
+`combined`) into `out/summary.json` in a single pass.
 
 The dashboard's **Ethereum / PulseChain / Combined** buttons are a purely
 client-side **display filter**: they only choose which pre-computed ranking the
@@ -253,8 +257,9 @@ pipeline under one `AbortController`, `hexleague.stop()` aborts it, and server.j
 just maps the HTTP routes to those methods. The signal threads down the
 pipeline. The
 two RPC loops that gate every scan phase — `getLogsChunked` (`eth_getLogs`, used
-by the stake scan, the OA forward-BFS, and the inbound-denominator scan) and
-`traceStream` (`trace_filter` native transfers) — call `signal.throwIfAborted()`
+by the stake scan, the resolve HSIM + wrapper-token scans, the OA forward-BFS,
+and the inbound-denominator scan) and `traceStream` (`trace_filter` native
+transfers) — call `signal.throwIfAborted()`
 at the top of each block window, and the BFS-hop and inbound-batch loops check
 between iterations. The stake ledger's checkpoint is written after each window,
 so a stop lands on a clean, resumable cursor and a later start tops up from

@@ -2,10 +2,11 @@
  * @file src/report/report.js
  * @description Stage 4 orchestration (`report`). Loads the cached ledgers, OA
  * clusters, and pinned-tip reads for both chains, reconciles each chain
- * (spec §8.1), builds the summary, flags the top non-OA stakers as
- * contract/EOA, and writes out/summary.json, out/report.md, the three
- * leagues_*.csv, and out/oa_wallets.csv. Runs offline from cache when the tip
- * reads are already cached and contract-flag enrichment is skipped.
+ * (spec §8.1) against the raw ledger, re-attributes stakes to resolved holders
+ * (Native / HSI owner / $MAXI look-through), builds the summary, flags the top
+ * non-OA stakers as contract/EOA, and writes out/summary.json, out/report.md, the
+ * three leagues_*.csv, and out/oa_wallets.csv. Runs offline from cache when the
+ * tip reads are already cached and contract-flag enrichment is skipped.
  */
 
 "use strict";
@@ -13,6 +14,8 @@
 const fs = require("fs");
 const path = require("path");
 const { buildActiveShares } = require("../scan/scan");
+const { resolveHolders } = require("../resolve/holders");
+const { loadResolution } = require("../resolve/resolution");
 const { readTip } = require("../chain/reads");
 const { reconcile } = require("../validate/reconcile");
 const { memberAddressSet, oaPath } = require("../oa/oa");
@@ -20,6 +23,7 @@ const { buildSummary } = require("./summary");
 const { buildDisplay } = require("./display");
 const { renderMarkdown } = require("./markdown");
 const { leaguesCsv, oaWalletsCsv } = require("./csv");
+const { tsharesGrouped } = require("./format");
 const cp = require("../scan/checkpoint");
 const { readJson, writeJson, ensureDir, OUT_DIR } = require("../cache/store");
 const tuning = require("../../config/tuning.json");
@@ -28,7 +32,8 @@ const tuning = require("../../config/tuning.json");
 const TOP_CONTRACTS = tuning.topContracts;
 
 /**
- * Load a chain's cached ledger + OA + tip, reconciling against globalInfo.
+ * Load a chain's cached ledger + OA + tip, reconcile the raw ledger against
+ * globalInfo, then re-attribute it to resolved holders.
  * @param {string} chainKey
  * @param {object|null} client
  * @param {object} log
@@ -42,7 +47,7 @@ async function loadChain(chainKey, client, log) {
     );
   }
   const tipBlock = checkpoint.pinnedTip;
-  const shares = await buildActiveShares(chainKey);
+  const rawShares = await buildActiveShares(chainKey);
   const oaJson = readJson(oaPath(chainKey), null);
   const oa = memberAddressSet(oaJson);
   let tip = cp.loadTip(chainKey);
@@ -53,7 +58,7 @@ async function loadChain(chainKey, client, log) {
     tip = await readTip(client, tipBlock);
     cp.saveTip(chainKey, tip);
   }
-  const rec = reconcile(shares, tip);
+  const rec = reconcile(rawShares, tip);
   if (!rec.ok) {
     log.warn(
       "[report %s] RECONCILIATION MISMATCH sum=%s expected=%s diff=%s",
@@ -63,7 +68,19 @@ async function loadChain(chainKey, client, log) {
       rec.diff,
     );
   }
-  return { shares, oa, oaJson: oaJson || { members: [] }, tip, rec };
+  const { shares, subtotals, labels } = resolveHolders(
+    rawShares,
+    loadResolution(chainKey),
+  );
+  return {
+    shares,
+    subtotals,
+    labels,
+    oa,
+    oaJson: oaJson || { members: [] },
+    tip,
+    rec,
+  };
 }
 
 /**
@@ -98,10 +115,80 @@ function writeOutputs(summary, contractFlags, oaJsons) {
   for (const view of ["eth", "pls", "combined"]) {
     fs.writeFileSync(
       path.join(OUT_DIR, `leagues_${view}.csv`),
-      leaguesCsv(summary.views[view], contractFlags),
+      leaguesCsv(summary.views[view], contractFlags, summary.labels),
     );
   }
   fs.writeFileSync(path.join(OUT_DIR, "oa_wallets.csv"), oaWalletsCsv(oaJsons));
+}
+
+/**
+ * Sum the per-label wrapped subtotals.
+ * @param {Record<string, bigint>} wrapped
+ * @returns {bigint}
+ */
+function sumWrapped(wrapped) {
+  let total = 0n;
+  for (const v of Object.values(wrapped)) total += v;
+  return total;
+}
+
+/**
+ * Format one raw-share figure as { raw, tshares } for summary.json.
+ * @param {bigint} raw
+ * @returns {{ raw: string, tshares: string }}
+ */
+function kindEntry(raw) {
+  return { raw: raw.toString(), tshares: tsharesGrouped(raw) };
+}
+
+/**
+ * Build a chain's stake-kind subtotal block (native / hsi / wrapped / total).
+ * @param {{ native: bigint, hsi: bigint, wrapped: Record<string, bigint> }} sub
+ * @returns {object}
+ */
+function stakeKindsBlock(sub) {
+  const wrappedTotal = sumWrapped(sub.wrapped);
+  const byLabel = {};
+  for (const [label, v] of Object.entries(sub.wrapped)) {
+    byLabel[label] = kindEntry(v);
+  }
+  return {
+    native: kindEntry(sub.native),
+    hsi: kindEntry(sub.hsi),
+    wrapped: { total: kindEntry(wrappedTotal), byLabel },
+    total: kindEntry(sub.native + sub.hsi + wrappedTotal),
+  };
+}
+
+/**
+ * Log a chain's stake-kind subtotals (final values, per logging convention).
+ * @param {object} log
+ * @param {string} chainKey
+ * @param {object} sub subtotals from resolveHolders
+ */
+function logStakeKinds(log, chainKey, sub) {
+  const b = stakeKindsBlock(sub);
+  log.info(
+    "[report %s] stake T-Shares native=%s hsi=%s wrapped=%s sum=%s",
+    chainKey,
+    b.native.tshares,
+    b.hsi.tshares,
+    b.wrapped.total.tshares,
+    b.total.tshares,
+  );
+}
+
+/**
+ * Merge label side-maps into a plain object keyed by lowercased address.
+ * @param {...Map<string, object>} maps
+ * @returns {Record<string, object>}
+ */
+function mergeLabels(...maps) {
+  const out = {};
+  for (const m of maps) {
+    for (const [addr, meta] of m) out[addr] = meta;
+  }
+  return out;
 }
 
 /**
@@ -124,6 +211,13 @@ async function generateReport(ctx) {
   };
   summary.contractFlags = contractFlags;
   summary.reconciliation = { eth: eth.rec, pls: pls.rec };
+  summary.stakeKinds = {
+    eth: stakeKindsBlock(eth.subtotals),
+    pls: stakeKindsBlock(pls.subtotals),
+  };
+  summary.labels = mergeLabels(eth.labels, pls.labels);
+  logStakeKinds(log, "eth", eth.subtotals);
+  logStakeKinds(log, "pls", pls.subtotals);
   const shareRates = {
     eth: eth.tip.shareRate,
     pls: pls.tip.shareRate,
@@ -145,4 +239,10 @@ async function generateReport(ctx) {
   return { summary, reconciliation: summary.reconciliation };
 }
 
-module.exports = { generateReport, loadChain, enrichContracts, writeOutputs };
+module.exports = {
+  generateReport,
+  loadChain,
+  enrichContracts,
+  writeOutputs,
+  stakeKindsBlock,
+};

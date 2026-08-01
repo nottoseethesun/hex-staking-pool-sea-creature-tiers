@@ -13,6 +13,7 @@
     "dev": "node scripts/build-info.js && node --watch server.js",
     "verify": "node bin/hexleague.js verify",
     "scan": "node bin/hexleague.js scan",
+    "resolve": "node bin/hexleague.js resolve",
     "oa": "node bin/hexleague.js oa",
     "report": "node bin/hexleague.js report",
     "update": "node bin/hexleague.js update",

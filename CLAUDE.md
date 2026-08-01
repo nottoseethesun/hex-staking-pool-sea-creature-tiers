@@ -3,8 +3,9 @@
 ## Purpose
 
 A read-only, self-hosted tool that scans the HEX contract on **Ethereum** and
-**PulseChain** via JSON-RPC, attributes every active stake's T-Shares to a
-wallet, excludes the Origin-Address (OA) funding cluster, and reports the
+**PulseChain** via JSON-RPC, attributes every active stake's T-Shares to its true
+holder (resolving HSI and $MAXI wrapped stakes to their owners), excludes the
+Origin-Address (OA) funding cluster, and reports the
 **sea-creature league** breakdown of the staking pool for three views:
 Ethereum, PulseChain, and Combined. It ships a CLI pipeline and a local
 dashboard. It is educational and informational only — see
@@ -53,15 +54,17 @@ src/
   config.js log.js       .env config; opt-in log wrapper (no global patching)
   disclaimer.js          single source of the disclaimer text
   abi/hex.json           vendored HEX ABI (topics/selectors derived at runtime)
+  abi/hsim.json          vendored HSIM ABI (HSI ownership events + views)
   chain/                 constants, address helpers, deploy-block search, tip reads
   rpc/                   client (concurrency + backoff), get-logs chunking, trace-filter
   decode/stake-events.js data0 BigInt bit decode + minimal ledger rows
   scan/                  scan.js (stake ledger) + checkpoint.js (resume cursor)
+  resolve/               HSI ownership (HSIM replay) + $MAXI look-through
   oa/                    funding-graph, graph (BFS), attribution, oa (orchestration)
   report/               leagues, format, summary, markdown, csv, display, report
   whereami.js            self-lookup over the summary
   validate/reconcile.js  Sigma active shares == globalInfo totals
-  cli/                   verify, scan-cmd, oa-cmd, report-cmd, whereami-cmd, context
+  cli/                   verify, scan-cmd, resolve-cmd, oa-cmd, report-cmd, whereami-cmd, context
 public/                  index.html, style.css, dashboard-*.js (ESM)
 scripts/                 check.js (umbrella gate), build-info.js
 eslint-rules/            no-interpolated-innerhtml, no-secret-logging, no-number-from-bigint
@@ -76,6 +79,7 @@ out/                     gitignored derived report artefacts
 ```bash
 npm run verify   # chainId, deploy block, ABI sanity (--chain eth|pls)
 npm run scan     # stake ledger scan (needs --chain; add --rebuild to reset)
+npm run resolve  # HSI + $MAXI resolution (needs --chain; --rebuild to reset)
 npm run oa       # OA funding cluster (needs --chain; --rebuild to reset)
 npm run report   # reads data/, writes out/ (summary.json, report.md, CSVs)
 npm start        # local read-only dashboard at http://127.0.0.1:3693
@@ -99,6 +103,13 @@ npm run check    # the full gate (lint + audits + tests + >=80% coverage)
   forward BFS from the OA (provably the same reachable set as reverse-spidering
   from every staker), with a per-candidate inbound denominator and a per-asset
   (HEX or native) threshold. Contracts are terminal. See
+  [docs/oa-wallet-estimation.md](docs/oa-wallet-estimation.md).
+- **Wrapped stakes resolve to their true holder.** A `resolve` stage (scan →
+  resolve → oa → report) re-attributes each active stake: Native stakes pass
+  through, HSI stakes re-key to the HSIM-resolved owner, and $MAXI is looked
+  through to its token holders pro-rata (exact BigInt; rounding dust kept under
+  the pool address so Σ is conserved and reconciliation stays exact). OA holders
+  of $MAXI are excluded by the same OA-set removal. See
   [docs/oa-wallet-estimation.md](docs/oa-wallet-estimation.md).
 - **Report is a pure transform.** `report` builds `out/` from cache + one pinned
   tip read; the dashboard and `whereami` run fully offline from `out/summary.json`.

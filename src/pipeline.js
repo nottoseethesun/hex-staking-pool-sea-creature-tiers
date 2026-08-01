@@ -11,7 +11,9 @@
 "use strict";
 
 const { makeClient } = require("./rpc/make-client");
-const { scanChain, buildActiveShares } = require("./scan/scan");
+const { scanChain } = require("./scan/scan");
+const { buildResolution } = require("./resolve/resolve");
+const { buildResolvedShares, resolutionPath } = require("./resolve/resolution");
 const { buildOa, oaPath } = require("./oa/oa");
 const { generateReport } = require("./report/report");
 const { writeUpdateStatus, clearUpdateStatus } = require("./update-status");
@@ -39,12 +41,20 @@ const REPORT_WORK = 150000;
  */
 function stageWeights(work) {
   const total =
-    work.scanEth + work.oaEth + work.scanPls + work.oaPls + work.report;
+    work.scanEth +
+    work.resolveEth +
+    work.oaEth +
+    work.scanPls +
+    work.resolvePls +
+    work.oaPls +
+    work.report;
   const t = total > 0 ? total : 1;
   return {
     scanEth: work.scanEth / t,
+    resolveEth: work.resolveEth / t,
     oaEth: work.oaEth / t,
     scanPls: work.scanPls / t,
+    resolvePls: work.resolvePls / t,
     oaPls: work.oaPls / t,
     report: work.report / t,
   };
@@ -58,7 +68,7 @@ function stageWeights(work) {
  * @param {string} chainKey
  * @param {object} config
  * @param {boolean} force
- * @returns {Promise<{scan:number, oa:number}>}
+ * @returns {Promise<{scan:number, resolve:number, oa:number}>}
  */
 async function estimateChainWork(client, chainKey, config, force) {
   const head = await client.getBlockNumber();
@@ -68,10 +78,13 @@ async function estimateChainWork(client, chainKey, config, force) {
     cp.loadDeployBlock(chainKey) ?? CHAIN_CFG[chainKey].approxDeployBlock;
   const scanStart = checkpoint ? checkpoint.lastScannedBlock : deploy;
   const scan = Math.max(0, tip - scanStart);
+  const resCache = force ? null : readJson(resolutionPath(chainKey), null);
+  const resCached = Boolean(resCache && resCache.tip === tip && scan === 0);
+  const resolve = resCached ? 0 : Math.max(1, tip - deploy);
   const oaCache = force ? null : readJson(oaPath(chainKey), null);
   const oaCached = Boolean(oaCache && oaCache.tip === tip && scan === 0);
   const oa = oaCached ? 0 : Math.max(1, tip - deploy);
-  return { scan, oa };
+  return { scan, resolve, oa };
 }
 
 /**
@@ -86,8 +99,10 @@ async function planStages(config, clients, force) {
   const pls = await estimateChainWork(clients.pls, "pls", config, force);
   return stageWeights({
     scanEth: eth.scan,
+    resolveEth: eth.resolve,
     oaEth: eth.oa,
     scanPls: pls.scan,
+    resolvePls: pls.resolve,
     oaPls: pls.oa,
     report: REPORT_WORK,
   });
@@ -118,6 +133,7 @@ async function runUpdate(ctx) {
     for (const chainKey of CHAINS) {
       const client = clients[chainKey];
       const wScan = chainKey === "eth" ? w.scanEth : w.scanPls;
+      const wResolve = chainKey === "eth" ? w.resolveEth : w.resolvePls;
       const wOa = chainKey === "eth" ? w.oaEth : w.oaPls;
       emit(wScan, 0, `Scanning ${chainKey}`);
       await scanChain({
@@ -130,8 +146,19 @@ async function runUpdate(ctx) {
         onProgress: (f) => emit(wScan, f, `Scanning ${chainKey}`),
       });
       acc += wScan;
+      emit(wResolve, 0, `Resolving ${chainKey}`);
+      await buildResolution({
+        client,
+        chainKey,
+        config,
+        log,
+        force,
+        signal,
+        onProgress: (f) => emit(wResolve, f, `Resolving ${chainKey}`),
+      });
+      acc += wResolve;
       emit(wOa, 0, `OA cluster ${chainKey}`);
-      const activeStakers = await buildActiveShares(chainKey);
+      const { shares: activeStakers } = await buildResolvedShares(chainKey);
       await buildOa({
         client,
         chainKey,

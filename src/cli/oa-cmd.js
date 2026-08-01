@@ -11,7 +11,7 @@ const { parseArgs } = require("node:util");
 const { config } = require("../config");
 const { log } = require("../log");
 const { makeClient, assertChain } = require("./context");
-const { buildActiveShares } = require("../scan/scan");
+const { buildResolvedShares } = require("../resolve/resolution");
 const { buildOa } = require("../oa/oa");
 const { DISCLAIMER_SHORT } = require("../disclaimer");
 
@@ -33,7 +33,7 @@ async function oa(argv) {
   }
   const chainKey = assertChain(values.chain);
   const client = makeClient(config, chainKey);
-  const activeStakers = await buildActiveShares(chainKey);
+  const { shares: activeStakers } = await buildResolvedShares(chainKey);
   const result = await buildOa({
     client,
     chainKey,
