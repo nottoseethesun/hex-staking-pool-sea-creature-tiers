@@ -228,7 +228,10 @@ serves a complete JSON API so the app can also be consumed as a dependency by
 other applications, for example to obtain a staker's sea-creature level.
 Endpoints: `GET /api/health`,
 `GET /api/whereami` (the key consumer endpoint — `?tshares=N` or `?address=0x…`),
-`GET /api/summary`, `GET /api/status`, `POST /api/update`,
+`GET /api/what-is-my-hex-staking-sea-creature` (`?tshares=N`, ≤8 decimals —
+ranking + the full staking-pool sub-object),
+`GET /api/get-hex-staking-pool-sea-creature-data` (that pool sub-object, no
+parameter), `GET /api/summary`, `GET /api/status`, `POST /api/update`,
 `POST /api/update/stop`, `GET /api/disclaimer`, and `GET /api/openapi.json`. The
 contract is defined in `docs/openapi.json`.
 

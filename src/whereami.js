@@ -60,9 +60,10 @@ function nextTierUp(league) {
  * Locate a raw-share total within one view.
  * @param {object} view
  * @param {bigint} rawShares
+ * @param {number} [decimals] T-Share display precision (default 3; the API uses 8)
  * @returns {object}
  */
-function locateInView(view, rawShares) {
+function locateInView(view, rawShares, decimals = 3) {
   const poolNonOa = BigInt(view.poolNonOaShares);
   const league = classify(rawShares, poolNonOa);
   const rank = 1 + countGreater(view.ranking, rawShares);
@@ -71,13 +72,14 @@ function locateInView(view, rawShares) {
   const next = nextTierUp(league);
   const gap = next ? thresholdShares(next, poolNonOa) - rawShares : 0n;
   return {
-    tshares: tshares(rawShares),
+    tshares: tshares(rawShares, decimals),
     league: { id: league.id, emoji: league.emoji, name: league.name },
     rank,
     nonOaStakerCount: n,
     percentile: Number(percentile.toFixed(4)),
     nextTier: next ? { id: next.id, name: next.name, emoji: next.emoji } : null,
-    distanceToNextTier: next && gap > 0n ? tshares(gap) : "0.000",
+    distanceToNextTier:
+      gap > 0n ? tshares(gap, decimals) : tshares(0n, decimals),
   };
 }
 
@@ -96,9 +98,10 @@ function indexView(view) {
  * Locate a set of addresses (summed, OA members called out) within one view.
  * @param {object} view
  * @param {string[]} addrs
+ * @param {number} [decimals] T-Share display precision (default 3; the API uses 8)
  * @returns {object}
  */
-function locateAddresses(view, addrs) {
+function locateAddresses(view, addrs, decimals = 3) {
   const idx = indexView(view);
   const oaHits = [];
   const found = [];
@@ -117,7 +120,7 @@ function locateAddresses(view, addrs) {
     oaHits,
     found,
     missing,
-    ...locateInView(view, total),
+    ...locateInView(view, total, decimals),
   };
 }
 
@@ -125,19 +128,20 @@ function locateAddresses(view, addrs) {
  * Locate a query across all three views.
  * @param {object} summary the report summary object
  * @param {{ addresses?: string[], tshares?: string|number }} query
+ * @param {number} [decimals] T-Share display precision (default 3; the API uses 8)
  * @returns {object}
  */
-function locate(summary, query) {
+function locate(summary, query, decimals = 3) {
   const results = {};
   for (const name of VIEW_NAMES) {
     const view = summary.views[name];
     if (query.tshares !== undefined && query.tshares !== null) {
       results[name] = {
         input: "tshares",
-        ...locateInView(view, tsharesToRaw(query.tshares)),
+        ...locateInView(view, tsharesToRaw(query.tshares), decimals),
       };
     } else {
-      results[name] = locateAddresses(view, query.addresses || []);
+      results[name] = locateAddresses(view, query.addresses || [], decimals);
     }
   }
   return { disclaimer: summary.disclaimer, results };

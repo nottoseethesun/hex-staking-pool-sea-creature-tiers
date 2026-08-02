@@ -128,6 +128,15 @@ is served by the same local process (`npm start`, `http://127.0.0.1:3693`):
 - `GET /api/whereami?tshares=N` (or `?address=0x…`) — the key consumer endpoint:
   the sea-creature level, rank, percentile, and distance to the next tier, per
   view.
+- `GET /api/what-is-my-hex-staking-sea-creature?tshares=N` — the caller's ranking
+  for a non-zero positive T-Share count (input honored to 8 decimal places)
+  **plus** the whole staking-pool sub-object: per-view pool totals and tier
+  breakdown, the sea-creature roster as a key-value map, and the last block
+  scanned + its UTC time per chain. Every T-Share figure is returned to 8
+  decimals (T-Shares can be very expensive). Read-only over the cached report;
+  never triggers a scan.
+- `GET /api/get-hex-staking-pool-sea-creature-data` — the same staking-pool
+  sub-object with no parameter (everything above except the per-caller ranking).
 - `GET /api/summary` — the full machine-readable report.
 - `GET /api/status` — data freshness and update progress.
 - `POST /api/update` — start a scan (initial or incremental top-up).
