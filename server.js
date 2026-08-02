@@ -5,8 +5,13 @@
  * core action to the hexleague facade (src/hexleague.js): start a scan
  * (POST /api/update -> hexleague.update), stop it (POST /api/update/stop ->
  * hexleague.stop), and locate a staker (GET /api/whereami -> hexleague.whereami).
- * No domain logic lives here; the read-only endpoints stream the report the
- * pipeline produced. Localhost bind, no CSRF, no keys.
+ * Two named read-only endpoints expose the public sea-creature API over the same
+ * cached report: GET /api/what-is-my-hex-staking-sea-creature (ranking for a
+ * T-Share count + full pool data) and GET
+ * /api/get-hex-staking-pool-sea-creature-data (pool data, no parameter). No
+ * domain logic lives here; the read-only endpoints stream the report the
+ * pipeline produced without ever triggering a scan. Localhost bind, no CSRF,
+ * no keys.
  */
 
 "use strict";
@@ -25,6 +30,10 @@ const {
 } = require("./src/update-status");
 const { DISCLAIMER } = require("./src/disclaimer");
 const { readJson, OUT_DIR } = require("./src/cache/store");
+const {
+  whatIsMySeaCreature,
+  buildPoolData,
+} = require("./src/report/pool-data");
 const { pidPath, writePid, clearPid } = require("./src/server-pid");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -125,6 +134,49 @@ function handleWhereami(url, res) {
   } catch (err) {
     sendJson(res, 400, { error: err.message });
   }
+}
+
+/**
+ * GET /api/what-is-my-hex-staking-sea-creature?tshares=<positive number, <=8 dp>
+ * The caller's sea-creature ranking for a non-zero positive T-Share count (up to
+ * 8 decimal places), plus the whole staking-pool data sub-object (totals, tier
+ * breakdown, roster, and per-chain as-of block + UTC time). Reads
+ * out/summary.json only — never triggers a scan. Answers 400 on a non-positive
+ * or over-precise tshares.
+ * @param {URL} url
+ * @param {import('http').ServerResponse} res
+ */
+function handleWhatIsMySeaCreature(url, res) {
+  const summary = readJson(SUMMARY_PATH, null);
+  if (!summary) {
+    sendJson(res, 404, { error: NO_REPORT_MSG });
+    return;
+  }
+  try {
+    const tshares = url.searchParams.get("tshares");
+    sendJson(res, 200, whatIsMySeaCreature(summary, tshares));
+  } catch (err) {
+    sendJson(res, 400, { error: err.message });
+  }
+}
+
+/**
+ * GET /api/get-hex-staking-pool-sea-creature-data
+ * The whole staking-pool data sub-object (no parameter) — everything
+ * what-is-my-hex-staking-sea-creature returns except the per-caller ranking.
+ * Reads out/summary.json only — never triggers a scan.
+ * @param {import('http').ServerResponse} res
+ */
+function handlePoolData(res) {
+  const summary = readJson(SUMMARY_PATH, null);
+  if (!summary) {
+    sendJson(res, 404, { error: NO_REPORT_MSG });
+    return;
+  }
+  sendJson(res, 200, {
+    disclaimer: summary.disclaimer,
+    stakingPool: buildPoolData(summary),
+  });
 }
 
 /**
@@ -238,6 +290,12 @@ function handleRequest(req, res) {
   if (url.pathname === "/api/health") return handleHealth(res);
   if (url.pathname === "/api/summary") return handleSummary(res);
   if (url.pathname === "/api/whereami") return handleWhereami(url, res);
+  if (url.pathname === "/api/what-is-my-hex-staking-sea-creature") {
+    return handleWhatIsMySeaCreature(url, res);
+  }
+  if (url.pathname === "/api/get-hex-staking-pool-sea-creature-data") {
+    return handlePoolData(res);
+  }
   if (url.pathname === "/api/status") return handleStatus(res);
   if (url.pathname === "/api/update/stop") return handleStop(req, res);
   if (url.pathname === "/api/update") return handleUpdate(req, res);

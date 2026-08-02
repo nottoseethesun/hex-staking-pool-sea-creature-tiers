@@ -89,6 +89,20 @@ test("summary + whereami answer 200 or a 404 no-report error", async () => {
   }
 });
 
+test("named sea-creature endpoints route to a report or a 404 no-report error", async () => {
+  const paths = [
+    "/api/what-is-my-hex-staking-sea-creature?tshares=42",
+    "/api/get-hex-staking-pool-sea-creature-data",
+  ];
+  for (const p of paths) {
+    const res = await invoke(p);
+    assert.ok([200, 404].includes(res.statusCode));
+    const body = JSON.parse(res.body);
+    if (res.statusCode === 404) assert.ok(body.error);
+    else assert.ok(body.stakingPool, `${p} returns a stakingPool sub-object`);
+  }
+});
+
 test("GET /api/openapi.json answers 200 or 404", async () => {
   const res = await invoke("/api/openapi.json");
   assert.ok([200, 404].includes(res.statusCode));

@@ -66,6 +66,52 @@
         }
       }
     },
+    "/api/what-is-my-hex-staking-sea-creature": {
+      "get": {
+        "summary": "The caller's sea-creature ranking plus the full pool data",
+        "description": "Given the caller's total HEX Staking Pool T-Share count as a non-zero positive number with up to 8 decimal places (`tshares`), returns their sea-creature ranking in each view (eth, pls, combined) and the whole staking-pool sub-object: per-chain as-of block + UTC time, pinned-tip chain state, per-view pool totals and tier breakdown, and the sea-creature roster as a key-value map. Every T-Share figure in the response is given to 8 decimal places (T-Shares can be very expensive). Read-only over the cached report; never triggers a scan.",
+        "parameters": [
+          {
+            "name": "tshares",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^\\d+(\\.\\d{1,8})?$" },
+            "description": "Total HEX Staking Pool T-Shares: a non-zero positive number, up to 8 decimal places."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ranking and the full pool data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatIsMySeaCreature"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/get-hex-staking-pool-sea-creature-data": {
+      "get": {
+        "summary": "The full staking-pool data (no parameter)",
+        "description": "Everything /api/what-is-my-hex-staking-sea-creature returns except the per-caller ranking: per-chain as-of block + UTC time, pinned-tip chain state, per-view pool totals and tier breakdown, and the sea-creature roster as a key-value map. Every T-Share figure is given to 8 decimal places. Read-only over the cached report; never triggers a scan.",
+        "responses": {
+          "200": {
+            "description": "The pool data.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PoolDataResponse" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/api/summary": {
       "get": {
         "summary": "The full report summary (all three views)",
@@ -226,6 +272,146 @@
               "combined": { "$ref": "#/components/schemas/ViewResult" }
             }
           }
+        }
+      },
+      "SharePair": {
+        "type": "object",
+        "properties": {
+          "shares": {
+            "type": "string",
+            "description": "Raw shares (10^12 raw = 1 T-Share)."
+          },
+          "tShares": {
+            "type": "string",
+            "description": "The same value in T-Shares, to 8 decimal places."
+          }
+        }
+      },
+      "AsOfChain": {
+        "type": "object",
+        "description": "The last block scanned for a chain and that block's UTC time.",
+        "properties": {
+          "block": { "type": ["integer", "null"] },
+          "timeUtc": {
+            "type": ["string", "null"],
+            "description": "ISO 8601 UTC timestamp of the block."
+          }
+        }
+      },
+      "RosterEntry": {
+        "type": "object",
+        "properties": {
+          "emoji": { "type": "string" },
+          "name": { "type": "string" },
+          "rank": {
+            "type": ["integer", "null"],
+            "description": "1 = top tier (Poseidon); null for Plankton."
+          },
+          "minShareFraction": {
+            "type": "string",
+            "description": "Minimum share of the non-OA pool, exact fraction (e.g. 1/10)."
+          },
+          "minSharePercent": {
+            "type": "string",
+            "description": "The same threshold as a percent (e.g. 10)."
+          },
+          "note": { "type": "string" }
+        }
+      },
+      "TierData": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "emoji": { "type": "string" },
+          "name": { "type": "string" },
+          "minShares": { "type": "string" },
+          "minTShares": { "type": "string" },
+          "wallets": { "type": "integer" },
+          "cumulativeWallets": { "type": "integer" },
+          "tierShares": { "type": "string" },
+          "tierTShares": { "type": "string" }
+        }
+      },
+      "ViewData": {
+        "type": "object",
+        "properties": {
+          "pool": {
+            "type": "object",
+            "properties": {
+              "total": { "$ref": "#/components/schemas/SharePair" },
+              "nonOa": { "$ref": "#/components/schemas/SharePair" },
+              "oaExcluded": { "$ref": "#/components/schemas/SharePair" }
+            }
+          },
+          "stakerCounts": {
+            "type": "object",
+            "properties": {
+              "nonOa": { "type": "integer" },
+              "oa": { "type": "integer" }
+            }
+          },
+          "tiers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TierData" }
+          }
+        }
+      },
+      "PoolData": {
+        "type": "object",
+        "description": "The whole staking-pool picture the app holds, pure over the cached report.",
+        "properties": {
+          "asOf": {
+            "type": "object",
+            "properties": {
+              "eth": { "$ref": "#/components/schemas/AsOfChain" },
+              "pls": { "$ref": "#/components/schemas/AsOfChain" }
+            }
+          },
+          "chains": {
+            "type": "object",
+            "description": "Pinned-tip chain state per chain (block, timeUtc, stakeSharesTotal, nextStakeSharesTotal, shareRate, currentDay, totalSupply)."
+          },
+          "views": {
+            "type": "object",
+            "properties": {
+              "eth": { "$ref": "#/components/schemas/ViewData" },
+              "pls": { "$ref": "#/components/schemas/ViewData" },
+              "combined": { "$ref": "#/components/schemas/ViewData" }
+            }
+          },
+          "roster": {
+            "type": "object",
+            "description": "Sea-creature roster keyed by tier id (poseidon … plankton).",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RosterEntry"
+            }
+          }
+        }
+      },
+      "PoolDataResponse": {
+        "type": "object",
+        "properties": {
+          "disclaimer": { "type": "string" },
+          "stakingPool": { "$ref": "#/components/schemas/PoolData" }
+        }
+      },
+      "WhatIsMySeaCreature": {
+        "type": "object",
+        "properties": {
+          "disclaimer": { "type": "string" },
+          "query": {
+            "type": "object",
+            "properties": { "tshares": { "type": "string" } }
+          },
+          "ranking": {
+            "type": "object",
+            "properties": {
+              "eth": { "$ref": "#/components/schemas/ViewResult" },
+              "pls": { "$ref": "#/components/schemas/ViewResult" },
+              "combined": { "$ref": "#/components/schemas/ViewResult" }
+            }
+          },
+          "stakingPool": { "$ref": "#/components/schemas/PoolData" }
         }
       },
       "Status": {
