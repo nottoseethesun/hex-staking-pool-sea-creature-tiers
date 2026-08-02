@@ -36,6 +36,9 @@ coverage/
 logs/
 *.log
 
+# Personal, local-only notes (call scripts, scratch) — never committed
+notes/
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
