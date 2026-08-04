@@ -11,7 +11,7 @@
 
 "use strict";
 
-const { getLogsChunked } = require("../rpc/get-logs");
+const { runResumableLogScan } = require("../cache/resumable-scan");
 const { TRANSFER_TOPIC, iface } = require("../decode/stake-events");
 
 /** The zero address — ERC-20 mint source / burn sink. */
@@ -106,30 +106,62 @@ function applyTransferLogs(balances, logs) {
 }
 
 /**
+ * Serialize balance-scan state to a JSON-safe snapshot (BigInt -> string).
+ * @param {{ balances: Map<string, bigint> }} st
+ * @returns {object}
+ */
+function serializeBalances(st) {
+  return { balances: [...st.balances].map(([a, v]) => [a, v.toString()]) };
+}
+
+/**
+ * Rehydrate balance-scan state from a snapshot, mutating `st` in place.
+ * @param {{ balances: Map<string, bigint> }} st
+ * @param {object} snap
+ */
+function restoreBalances(st, snap) {
+  st.balances = new Map(snap.balances.map(([a, v]) => [a, BigInt(v)]));
+}
+
+/**
  * Scan a wrapper token's ERC-20 Transfer log and reconstruct holder balances +
- * circulating supply as of `toBlock`.
+ * circulating supply as of `toBlock`, resumably: `opts.load` / `opts.save`
+ * (supplied by the resolve stage) checkpoint the balance map + block cursor in
+ * batches, so an interrupted scan resumes instead of restarting.
  * @param {object} client guarded RPC client
  * @param {object} opts { token, fromBlock, toBlock, startChunk, signal?,
- *   onProgress? }
+ *   onProgress?, load?, save? }
  * @returns {Promise<{ balances: Map<string, bigint>, supply: bigint }>}
  */
 async function scanWrapperBalances(client, opts) {
   const { token, fromBlock, toBlock, startChunk, signal, onProgress } = opts;
-  const balances = new Map();
+  const state = { balances: new Map() };
   const span = Math.max(1, toBlock - fromBlock);
-  await getLogsChunked(client, {
+  await runResumableLogScan(client, {
     address: token,
     topics: [TRANSFER_TOPIC],
     fromBlock,
     toBlock,
     startChunk,
     signal,
-    onLogs: (logs) => applyTransferLogs(balances, logs),
+    state,
+    applyLogs: (st, logs) => applyTransferLogs(st.balances, logs),
+    serialize: serializeBalances,
+    restore: restoreBalances,
+    load: opts.load ?? (() => null),
+    save: opts.save ?? (() => {}),
     onProgress: onProgress
       ? (p) => onProgress(Math.min(1, Math.max(0, (p.to - fromBlock) / span)))
       : undefined,
   });
-  return finalizeBalances(balances);
+  return finalizeBalances(state.balances);
 }
 
-module.exports = { distribute, foldTransfers, scanWrapperBalances, ZERO };
+module.exports = {
+  distribute,
+  foldTransfers,
+  scanWrapperBalances,
+  serializeBalances,
+  restoreBalances,
+  ZERO,
+};
