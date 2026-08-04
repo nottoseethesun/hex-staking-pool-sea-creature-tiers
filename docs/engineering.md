@@ -105,6 +105,34 @@ summary.
 
 `--rebuild` discards a chain's cache and rescans from the deploy block.
 
+### Utilities (`utils/`)
+
+`utils/check-trace-support.js` probes whether an EVM JSON-RPC endpoint serves
+`trace_filter` — the trace API the OA stage depends on — **and** whether it is a
+full archive node (traces available back to old blocks, not only recent ones).
+Both matter: the OA inbound scan needs `trace_filter` over the entire
+deploy→tip range, so a trace-capable but non-archive endpoint is useless. It is
+standalone (Node built-ins only, no repo imports), so it runs against any URL.
+
+```bash
+node utils/check-trace-support.js <rpc-url> [more-urls...] \
+  [--archive-block N] [--timeout MS]
+```
+
+It prints a per-URL verdict and exits `0` only if **every** URL supports
+`trace_filter` and is full archive (so it composes in shell / CI); `1`
+otherwise. Example:
+
+```text
+✓ https://rpc-pulsechain.g4mm4.io
+    trace_filter: supported  |  archive: full archive
+✗ https://rpc.pulsechain.com
+    trace_filter: missing  |  archive: -
+```
+
+Use it to vet a candidate RPC before adding it — e.g. as a parallel trace
+endpoint for the OA stage.
+
 ## The check pipeline
 
 `scripts/check.js` runs every gate (ESLint, Stylelint, html-validate,
