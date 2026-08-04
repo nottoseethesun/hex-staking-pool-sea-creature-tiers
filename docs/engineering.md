@@ -151,6 +151,25 @@ holder balances + supply, recomputed when the pinned tip moves); `oa.json` +
 flag discards a chain's ledger. Delete `data/` for a clean rescan. The derived
 `out/` artefacts are pure functions of the cache plus one pinned-tip read.
 
+## Kind to the disk (batched writes)
+
+Every long stage consolidates its cache writes so the disk isn't hammered with
+small, frequent I/O. Instead of writing after every block window, the scan and
+resolve stages buffer their state in memory and flush only every few minutes:
+
+- A shared **flush gate** (`src/cache/flush-gate.js`) fires when either
+  `flushEveryChunks` (default 60) windows **or** `flushEveryMs` (default 180000 —
+  three minutes) have elapsed, whichever comes first; both are tunable in
+  `config/tuning.json`.
+- The **scan** buffers decoded ledger rows and appends them in batches
+  (`createLedgerWriter`); **resolve** buffers the HEX Stake Instance Manager
+  (HSIM) ownership replay and each wrapper's balance map and snapshots
+  `{ cursor, state }` via `runResumableLogScan` (`src/cache/resumable-scan.js`).
+  Both also flush on normal completion and on a clean stop (SIGTERM / Stop Sync).
+- Net effect: roughly a 60× cut in cache-write frequency (every few minutes, not
+  every few seconds) — easier on SSD wear and on machine responsiveness during a
+  multi-day scan — while the crash-loss window stays at most one batch (see below).
+
 ## Crash safety and recovery
 
 The cache is written to survive an abrupt halt — SIGTERM, `kill`, a crash, or the
@@ -165,15 +184,14 @@ scan's own **Stop Sync** — without corruption:
   mid-append. The next scan calls `truncatePartialLine` to drop an unterminated
   trailing line; the checkpoint re-scans that dropped block window, and
   `buildActiveShares` dedups by `staker:stakeId`, so no row is lost or doubled.
-- **Writes are batched, and flushed on a clean stop.** To spare the disk, the
-  scan buffers decoded rows in memory and flushes them (append the rows, *then*
-  advance `checkpoint.json`) only every few minutes — `flushEveryChunks` /
-  `flushEveryMs` in `config/tuning.json`, whichever comes first — and always on
-  normal completion and on a clean abort (SIGTERM / Stop Sync) via a `finally`.
-  Rows are written before the cursor advances, so the checkpoint never points
-  past unwritten rows; a hard crash (power loss) loses at most one unflushed
-  batch, which the next scan re-fetches — harmless, per the idempotent replay
-  above. A halt resumes from the last flushed window rather than restarting.
+- **Writes are batched and flushed on a clean stop** (see
+  [Kind to the disk](#kind-to-the-disk-batched-writes)). The scan appends rows
+  *before* advancing `checkpoint.json`, so the checkpoint never points past
+  unwritten rows; resolve snapshots `{ cursor, state }` atomically. A hard crash
+  (power loss) loses at most one unflushed batch — the next run re-fetches it,
+  which is harmless (the scan replay is idempotent to duplicate rows; resolve
+  resumes from its last snapshot). A halt resumes from the last flushed block
+  rather than restarting.
 
 **Limitation — power loss.** `rename` is atomic with respect to other processes,
 but the tool does not `fsync`, so a sudden **power outage** (unlike a clean kill)

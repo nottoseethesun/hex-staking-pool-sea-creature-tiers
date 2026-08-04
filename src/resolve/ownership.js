@@ -1,18 +1,19 @@
 /**
  * @file src/resolve/ownership.js
- * @description Reconstruct each HSI contract's current owner by replaying the
- * HSIM's ownership events in chronological order — eth_getLogs streams them in
- * (block, logIndex) order, so a single filtered stream over all the events needs
- * no re-sort. Untokenized HSIs are owned by their staker (HSIStart / HSITransfer /
- * HSIDetokenize); tokenized HSIs follow the ERC-721 NFT holder (HSITokenize maps
- * tokenId->HSI, then Transfer moves it; mint/burn via the zero address are inert).
- * Ended HSIs are dropped. The pure state machine is exported for testing; the scan
- * feeds it a single filtered HSIM log stream.
+ * @description Reconstruct each HEX Stake Instance (HSI) contract's current owner
+ * by replaying the HEX Stake Instance Manager (HSIM) ownership events in
+ * chronological order — eth_getLogs streams them in (block, logIndex) order, so a
+ * single filtered stream over all the events needs no re-sort. Untokenized HSIs
+ * are owned by their staker (HSIStart / HSITransfer / HSIDetokenize); tokenized
+ * HSIs follow the ERC-721 NFT holder (HSITokenize maps tokenId->HSI, then Transfer
+ * moves it; mint/burn via the zero address are inert). Ended HSIs are dropped. The
+ * pure state machine is exported for testing; the scan feeds it a single filtered
+ * HSIM log stream.
  */
 
 "use strict";
 
-const { getLogsChunked } = require("../rpc/get-logs");
+const { runResumableLogScan } = require("../cache/resumable-scan");
 const { HSIM_TOPICS, decodeHsimLog } = require("./hsim-events");
 const { ZERO } = require("./wrapped");
 
@@ -75,26 +76,58 @@ function finalizeOwners(s) {
 }
 
 /**
- * Replay the HSIM ownership log into a chain's HSI -> owner map (as of toBlock).
+ * Serialize the replay state to a JSON-safe snapshot (Maps/Set -> arrays).
+ * @param {object} s
+ * @returns {object}
+ */
+function serializeState(s) {
+  return {
+    owner: [...s.owner],
+    tokenIdToHsi: [...s.tokenIdToHsi],
+    ended: [...s.ended],
+  };
+}
+
+/**
+ * Rehydrate replay state from a snapshot, mutating `s` in place.
+ * @param {object} s
+ * @param {object} snap
+ */
+function restoreState(s, snap) {
+  s.owner = new Map(snap.owner);
+  s.tokenIdToHsi = new Map(snap.tokenIdToHsi);
+  s.ended = new Set(snap.ended);
+}
+
+/**
+ * Replay the HSIM ownership log into a chain's HSI -> owner map (as of toBlock),
+ * resumably: `opts.load` / `opts.save` (supplied by the resolve stage) checkpoint
+ * the replay state + block cursor in batches, so an interrupted replay resumes
+ * instead of restarting.
  * @param {object} client guarded RPC client
  * @param {object} opts { hsim, fromBlock, toBlock, startChunk, signal?,
- *   onProgress? }
+ *   onProgress?, load?, save? }
  * @returns {Promise<Map<string, string>>}
  */
 async function buildHsiOwnership(client, opts) {
   const { hsim, fromBlock, toBlock, startChunk, signal, onProgress } = opts;
   const s = newState();
   const span = Math.max(1, toBlock - fromBlock);
-  await getLogsChunked(client, {
+  await runResumableLogScan(client, {
     address: hsim,
     topics: [HSIM_TOPICS],
     fromBlock,
     toBlock,
     startChunk,
     signal,
-    onLogs: (logs) => {
-      for (const log of logs) applyEvent(s, decodeHsimLog(log));
+    state: s,
+    applyLogs: (st, logs) => {
+      for (const log of logs) applyEvent(st, decodeHsimLog(log));
     },
+    serialize: serializeState,
+    restore: restoreState,
+    load: opts.load ?? (() => null),
+    save: opts.save ?? (() => {}),
     onProgress: onProgress
       ? (p) => onProgress(Math.min(1, Math.max(0, (p.to - fromBlock) / span)))
       : undefined,
@@ -102,4 +135,11 @@ async function buildHsiOwnership(client, opts) {
   return finalizeOwners(s);
 }
 
-module.exports = { newState, applyEvent, finalizeOwners, buildHsiOwnership };
+module.exports = {
+  newState,
+  applyEvent,
+  finalizeOwners,
+  buildHsiOwnership,
+  serializeState,
+  restoreState,
+};
