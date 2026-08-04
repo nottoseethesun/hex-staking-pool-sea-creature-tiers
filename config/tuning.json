@@ -6,6 +6,8 @@
   "adaptiveMinConcurrency": 1,
   "adaptiveDecreaseCooldownMs": 3000,
   "adaptiveIncreaseAfter": 24,
+  "flushEveryChunks": 60,
+  "flushEveryMs": 180000,
   "nativeTraceChunk": 2000,
   "batchSize": 200,
   "maxEvidence": 3,
