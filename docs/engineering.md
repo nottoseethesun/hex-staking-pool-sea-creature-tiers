@@ -165,8 +165,15 @@ scan's own **Stop Sync** — without corruption:
   mid-append. The next scan calls `truncatePartialLine` to drop an unterminated
   trailing line; the checkpoint re-scans that dropped block window, and
   `buildActiveShares` dedups by `staker:stakeId`, so no row is lost or doubled.
-- **Progress is checkpointed per block window**, so a halt resumes from the last
-  completed window instead of restarting.
+- **Writes are batched, and flushed on a clean stop.** To spare the disk, the
+  scan buffers decoded rows in memory and flushes them (append the rows, *then*
+  advance `checkpoint.json`) only every few minutes — `flushEveryChunks` /
+  `flushEveryMs` in `config/tuning.json`, whichever comes first — and always on
+  normal completion and on a clean abort (SIGTERM / Stop Sync) via a `finally`.
+  Rows are written before the cursor advances, so the checkpoint never points
+  past unwritten rows; a hard crash (power loss) loses at most one unflushed
+  batch, which the next scan re-fetches — harmless, per the idempotent replay
+  above. A halt resumes from the last flushed window rather than restarting.
 
 **Limitation — power loss.** `rename` is atomic with respect to other processes,
 but the tool does not `fsync`, so a sudden **power outage** (unlike a clean kill)

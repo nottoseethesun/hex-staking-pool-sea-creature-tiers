@@ -21,6 +21,8 @@ const {
 } = require("../cache/store");
 const { logChunkFor } = require("../config");
 const cp = require("./checkpoint");
+const { createFlushGate } = require("../cache/flush-gate");
+const tuning = require("../../config/tuning.json");
 
 /**
  * Resolve (and cache) the HEX deploy block for a chain.
@@ -41,31 +43,63 @@ async function resolveDeployBlock(client, chainKey, tip, force) {
 }
 
 /**
- * Persist a window of decoded rows and advance the checkpoint.
- * @param {object} args
- * @returns {number} updated running row count
+ * A batched ledger writer: it buffers decoded rows in memory and flushes them
+ * (append the rows, then advance the checkpoint) only when the flush gate says
+ * so — cutting per-chunk cache writes down to roughly one every few minutes.
+ * Rows are appended BEFORE the cursor advances, so a crash never leaves the
+ * checkpoint pointing past unwritten rows; and the ledger replay is idempotent
+ * to a re-scanned batch, so any duplicate rows after a crash are harmless.
+ * `append` / `save` are injectable for tests.
+ * @param {object} args { chainKey, file, tip, chunkSize, startBlock, rows,
+ *   everyItems?, everyMs?, append?, save? }
+ * @returns {{ add: (decoded: object[], rangeTo: number) => void,
+ *   flush: () => void, rows: () => number }}
  */
-function persistWindow({
-  chainKey,
-  file,
-  logs,
-  range,
-  tip,
-  rows,
-  chunkSize,
-  log,
-}) {
-  const decoded = logs.map(decodeStakeLog).filter(Boolean);
-  appendNdjson(file, decoded);
-  const total = rows + decoded.length;
-  cp.saveCheckpoint(chainKey, {
-    lastScannedBlock: range.to,
-    pinnedTip: tip,
-    rows: total,
+function createLedgerWriter(args) {
+  const {
+    chainKey,
+    file,
+    tip,
     chunkSize,
+    startBlock,
+    append = appendNdjson,
+    save = cp.saveCheckpoint,
+  } = args;
+  const gate = createFlushGate({
+    everyItems: args.everyItems,
+    everyMs: args.everyMs,
   });
-  log.info("[scan %s] %d/%d blocks, %d rows", chainKey, range.to, tip, total);
-  return total;
+  const buffer = [];
+  let rows = args.rows;
+  let pendingTo = startBlock - 1;
+  let flushedTo = startBlock - 1;
+  const flush = () => {
+    if (buffer.length > 0) {
+      append(file, buffer); // data first
+      buffer.length = 0;
+    }
+    if (pendingTo > flushedTo) {
+      save(chainKey, {
+        lastScannedBlock: pendingTo, // then the cursor
+        pinnedTip: tip,
+        rows,
+        chunkSize,
+      });
+      flushedTo = pendingTo;
+    }
+    gate.reset();
+  };
+  return {
+    add(decoded, rangeTo) {
+      for (const d of decoded) buffer.push(d);
+      rows += decoded.length;
+      pendingTo = rangeTo;
+      gate.add(1);
+      if (gate.due()) flush();
+    },
+    flush,
+    rows: () => rows,
+  };
 }
 
 /**
@@ -86,7 +120,7 @@ async function scanChain(ctx) {
     );
   }
   const startBlock = checkpoint ? checkpoint.lastScannedBlock + 1 : deployBlock;
-  let rows = checkpoint ? checkpoint.rows : 0;
+  const rows = checkpoint ? checkpoint.rows : 0;
   if (startBlock > tip) {
     log.info("[scan %s] already up to date at block %d", chainKey, tip);
     return { chainKey, tip, deployBlock, rows, scanned: 0 };
@@ -96,38 +130,52 @@ async function scanChain(ctx) {
   // this session's appends never fuse onto a truncated row.
   truncatePartialLine(file);
   const chunkSize = logChunkFor(config, chainKey);
-  await getLogsChunked(client, {
-    address: HEX_CONTRACT,
-    topics: [STAKE_TOPICS],
-    fromBlock: startBlock,
-    toBlock: tip,
-    startChunk: chunkSize,
-    signal: ctx.signal,
-    onLogs: (logs, range) => {
-      rows = persistWindow({
-        chainKey,
-        file,
-        logs,
-        range,
-        tip,
-        rows,
-        chunkSize,
-        log,
-      });
-      if (ctx.onProgress) {
-        const span = tip - startBlock;
-        const frac = span > 0 ? (range.to - startBlock) / span : 1;
-        ctx.onProgress(Math.min(1, Math.max(0, frac)));
-      }
-    },
-  });
-  cp.saveCheckpoint(chainKey, {
-    lastScannedBlock: tip,
-    pinnedTip: tip,
-    rows,
+  const writer = createLedgerWriter({
+    chainKey,
+    file,
+    tip,
     chunkSize,
+    startBlock,
+    rows,
+    everyItems: tuning.flushEveryChunks,
+    everyMs: tuning.flushEveryMs,
   });
-  return { chainKey, tip, deployBlock, rows, scanned: tip - startBlock + 1 };
+  try {
+    await getLogsChunked(client, {
+      address: HEX_CONTRACT,
+      topics: [STAKE_TOPICS],
+      fromBlock: startBlock,
+      toBlock: tip,
+      startChunk: chunkSize,
+      signal: ctx.signal,
+      onLogs: (logs, range) => {
+        writer.add(logs.map(decodeStakeLog).filter(Boolean), range.to);
+        log.info(
+          "[scan %s] %d/%d blocks, %d rows",
+          chainKey,
+          range.to,
+          tip,
+          writer.rows(),
+        );
+        if (ctx.onProgress) {
+          const span = tip - startBlock;
+          const frac = span > 0 ? (range.to - startBlock) / span : 1;
+          ctx.onProgress(Math.min(1, Math.max(0, frac)));
+        }
+      },
+    });
+  } finally {
+    // Persist the final (or in-flight) batch on normal completion OR a clean
+    // abort, so `npm stop` / Stop Sync never loses buffered rows.
+    writer.flush();
+  }
+  return {
+    chainKey,
+    tip,
+    deployBlock,
+    rows: writer.rows(),
+    scanned: tip - startBlock + 1,
+  };
 }
 
 /**
@@ -161,4 +209,10 @@ async function buildActiveShares(chainKey, file = cp.stakesPath(chainKey)) {
   return totals;
 }
 
-module.exports = { scanChain, buildActiveShares, resolveDeployBlock, applyRow };
+module.exports = {
+  scanChain,
+  buildActiveShares,
+  resolveDeployBlock,
+  applyRow,
+  createLedgerWriter,
+};
