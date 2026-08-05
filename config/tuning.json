@@ -13,5 +13,7 @@
   "maxEvidence": 3,
   "topContracts": 200,
   "oaMaxHops": 3,
-  "oaFundingThreshold": 0.2
+  "oaFundingThreshold": 0.2,
+  "tracePreflightMin": 2,
+  "traceProbeTimeoutMs": 20000
 }

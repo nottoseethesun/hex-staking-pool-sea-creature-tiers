@@ -15,6 +15,7 @@ const { update } = require("./update-cmd");
 const { whereami } = require("./whereami-cmd");
 const { seed } = require("./seed-cmd");
 const { stop } = require("./stop-cmd");
+const { secret } = require("./secret-cmd");
 const { log } = require("../log");
 
 const COMMANDS = {
@@ -27,6 +28,7 @@ const COMMANDS = {
   stop,
   whereami,
   seed,
+  secret,
 };
 
 const HELP = `hexleague — HEX sea-creature league analysis (read-only)
@@ -40,6 +42,7 @@ Usage:
   hexleague update   [--rebuild]           scan + resolve + oa + report, both chains
   hexleague stop                           stop a running dashboard scan
   hexleague seed     --url U --sha256 H    seed data/ from a verified snapshot
+  hexleague secret   set-moralis|unlock    local encrypted vault (Moralis RPC etc.)
   hexleague whereami --address 0x… [--address 0x…] | --tshares N
 
 Flags:

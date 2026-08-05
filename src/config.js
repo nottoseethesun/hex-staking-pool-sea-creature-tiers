@@ -16,6 +16,7 @@ const dotenv = require("dotenv");
 const { CHAINS } = require("./chain/constants");
 const tuning = require("../config/tuning.json");
 const serverCfg = require("../config/server.json");
+const holder = require("./secrets/holder");
 
 dotenv.config();
 
@@ -73,20 +74,45 @@ function fractionOr(value, dflt) {
 }
 
 /**
+ * Parse a whitespace/comma-separated list of RPC URLs, or null when unset/empty.
+ * @param {string | undefined} value
+ * @returns {string[] | null}
+ */
+function parseUrlList(value) {
+  if (!value) return null;
+  const urls = value
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return urls.length ? urls : null;
+}
+
+/**
  * Build the config object from an environment map.
  * @param {Record<string, string | undefined>} [env]
  * @returns {object}
  */
 function loadConfig(env = process.env) {
+  const ethPrimary = env.ETH_RPC_URL || CHAINS.eth.defaultRpc;
+  const ethFallback =
+    env.ETH_RPC_URL_FALLBACK ||
+    ankrEthUrlFromKey(secrets.ankrEthApiKey) ||
+    CHAINS.eth.fallbackRpc ||
+    null;
+  const plsPrimary = env.PLS_RPC_URL || CHAINS.pls.defaultRpc;
+  const plsFallback =
+    env.PLS_RPC_URL_FALLBACK || CHAINS.pls.fallbackRpc || null;
+  const ethRpcUrls =
+    parseUrlList(env.ETH_RPC_URLS) || [ethPrimary, ethFallback].filter(Boolean);
+  const plsRpcUrls =
+    parseUrlList(env.PLS_RPC_URLS) || [plsPrimary, plsFallback].filter(Boolean);
   return {
-    ethRpcUrl: env.ETH_RPC_URL || CHAINS.eth.defaultRpc,
-    ethRpcFallback:
-      env.ETH_RPC_URL_FALLBACK ||
-      ankrEthUrlFromKey(secrets.ankrEthApiKey) ||
-      CHAINS.eth.fallbackRpc ||
-      null,
-    plsRpcUrl: env.PLS_RPC_URL || CHAINS.pls.defaultRpc,
-    plsRpcFallback: env.PLS_RPC_URL_FALLBACK || CHAINS.pls.fallbackRpc || null,
+    ethRpcUrl: ethRpcUrls[0],
+    ethRpcFallback: ethFallback,
+    ethRpcUrls,
+    plsRpcUrl: plsRpcUrls[0],
+    plsRpcFallback: plsFallback,
+    plsRpcUrls,
     port: intOr(env.PORT, serverCfg.port),
     host: env.HOST || serverCfg.host,
     concurrency: intOr(env.CONCURRENCY, tuning.concurrency),
@@ -99,6 +125,10 @@ function loadConfig(env = process.env) {
       tuning.oaFundingThreshold,
     ),
     rpcCache: env.RPC_CACHE === "1" || env.RPC_CACHE === "true",
+    tracePreflight: !(
+      env.TRACE_PREFLIGHT === "0" || env.TRACE_PREFLIGHT === "false"
+    ),
+    tracePreflightMin: intOr(env.TRACE_PREFLIGHT_MIN, tuning.tracePreflightMin),
   };
 }
 
@@ -110,6 +140,34 @@ function loadConfig(env = process.env) {
  */
 function rpcUrlFor(cfg, chainKey) {
   return chainKey === "eth" ? cfg.ethRpcUrl : cfg.plsRpcUrl;
+}
+
+/**
+ * Resolve the ordered RPC URL list for a chain key (primary first).
+ * @param {object} cfg
+ * @param {"eth" | "pls"} chainKey
+ * @returns {string[]}
+ */
+function rpcUrlsFor(cfg, chainKey) {
+  return chainKey === "eth" ? cfg.ethRpcUrls : cfg.plsRpcUrls;
+}
+
+/**
+ * The RPC URLs a chain should actually use: any unlocked secret RPC URLs for the
+ * chain FIRST, in order, then the configured list, de-duplicated. The vault holds
+ * up to three keyed Moralis node URLs (`<chain>Rpc1..3`) and up to three generic,
+ * key-free node URLs (`<chain>Generic1..3`); Moralis (trace-capable) come first.
+ * Runtime — it reflects whatever the current session has unlocked.
+ * @param {object} cfg
+ * @param {"eth" | "pls"} chainKey
+ * @returns {string[]}
+ */
+function effectiveRpcUrls(cfg, chainKey) {
+  const names = [];
+  for (let i = 1; i <= 3; i += 1) names.push(`${chainKey}Rpc${i}`);
+  for (let i = 1; i <= 3; i += 1) names.push(`${chainKey}Generic${i}`);
+  const secrets = names.map((n) => holder.get(n)).filter(Boolean);
+  return [...new Set([...secrets, ...rpcUrlsFor(cfg, chainKey)])];
 }
 
 /**
@@ -132,12 +190,30 @@ function fallbackUrlFor(cfg, chainKey) {
   return chainKey === "eth" ? cfg.ethRpcFallback : cfg.plsRpcFallback;
 }
 
+/**
+ * A one-line human summary of the effective config for the startup log — real
+ * facts only (port, and the CONFIGURED RPC count per chain). Vault-unlocked RPC
+ * URLs are runtime, so they aren't counted here.
+ * @param {object} cfg loadConfig() result
+ * @returns {string}
+ */
+function describeConfig(cfg) {
+  return (
+    `chains eth+pls, port ${cfg.port}, ` +
+    `ETH RPC(s): ${cfg.ethRpcUrls.length}, PLS RPC(s): ${cfg.plsRpcUrls.length}`
+  );
+}
+
 module.exports = {
   loadConfig,
+  describeConfig,
   rpcUrlFor,
+  rpcUrlsFor,
+  effectiveRpcUrls,
   logChunkFor,
   fallbackUrlFor,
   ankrEthUrlFromKey,
+  parseUrlList,
   loadSecrets,
   config: loadConfig(),
 };

@@ -129,9 +129,21 @@ but each may represent many underlying holders).
 The scan is cache-aware and, because chain data is immutable, has **no expiry**.
 `eth_getCode` results are cached in `data/<chain>/codes.json` (an address's
 contract status does not change once deployed). The OA cluster is written to
-`data/<chain>/oa.json` and reused when the pinned tip is unchanged; when the tip
-advances, the cluster is rebuilt (the OA-rooted scan is far cheaper than the full
-stake-ledger scan).
+`data/<chain>/oa.json` and reused when the pinned tip is unchanged.
+
+**Incremental Re-Scan.** When the tip advances, the cluster is *extended*, not
+rebuilt: `data/<chain>/oa-state.json` persists the full reachable set (per-wallet
+OA-attributed totals, the contract list, and each candidate's inbound total), and
+a **delta-BFS** rescans existing cluster wallets over only the new block range
+while scanning any newly-joined wallet over its full history (it may have funded
+others at any past block). The per-candidate inbound denominators extend the same
+way. Numerators and denominators are additive, so nothing is double-counted. The
+one case the delta pass cannot relax on its own — a new funding shortcut that
+shortens an already-explored wallet's hop depth — is detected and triggers a full
+rebuild for that cycle, so an incremental result is **always identical** to a
+from-scratch scan. Cost therefore scales with the gap since the last scan, though
+the wallet *count* remains a floor (every descendant is still checked for new
+activity over the new range).
 
 ## Tunables
 

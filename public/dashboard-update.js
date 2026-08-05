@@ -12,6 +12,9 @@
  */
 
 let sawUpdating = false;
+// Whether the last status poll saw a complete scan on disk — gates the "Re-Scan"
+// label and the "Are You Sure?" confirm (a re-scan re-traces every OA wallet).
+let lastHasCompleteScan = false;
 
 /**
  * Format a duration in seconds as hrs:min (e.g. 5025 -> "1:23").
@@ -33,7 +36,7 @@ function setBadgeState(badge, state) {
 
 /**
  * Set the header Sync/Stop button's label, enabled state, and tooltip.
- * @param {string} label button text ("Sync" or "Stop Sync")
+ * @param {string} label button text ("Sync", "Re-Scan", or "Stop Sync")
  * @param {boolean} disabled
  * @param {string} [title]
  */
@@ -112,6 +115,7 @@ function applyStatus(s) {
   const fill = badge.querySelector(".sync-fill");
   const label = badge.querySelector(".sync-label");
   badge.hidden = false;
+  lastHasCompleteScan = Boolean(s.hasCompleteScan);
   updateNoDataMessage(s);
   if (s.updating) {
     sawUpdating = true;
@@ -149,7 +153,11 @@ function applyStatus(s) {
     badge,
     s.hasCompleteScan && !s.updateEnabled ? "is-fresh" : "is-stale",
   );
-  setSyncBtn("Sync", !s.updateEnabled, syncTitle(s));
+  setSyncBtn(
+    s.hasCompleteScan ? "Re-Scan" : "Sync",
+    !s.updateEnabled,
+    syncTitle(s),
+  );
   setUpdateBtn(!s.updateEnabled, syncTitle(s));
 }
 
@@ -196,14 +204,44 @@ async function doStop() {
   void poll();
 }
 
+/** Show the "Are You Sure?" confirmation before an expensive full re-scan. */
+function openRescanConfirm() {
+  document.getElementById("rescanModal").hidden = false;
+}
+
+/** Hide the re-scan confirmation. */
+function closeRescanConfirm() {
+  document.getElementById("rescanModal").hidden = true;
+}
+
+/**
+ * Start a sync, but when a complete scan already exists, confirm first — a
+ * re-scan re-traces every OA wallet (the days-long cost), so it must not fire on
+ * a stray click. The initial scan (no cache yet) starts without a prompt.
+ */
+function requestSync() {
+  if (lastHasCompleteScan) openRescanConfirm();
+  else void doSync();
+}
+
 /** Wire the sync triggers (header toggles start/stop) and start polling. */
 export function initSync() {
   document.getElementById("syncBtn").addEventListener("click", () => {
     if (document.body.classList.contains("syncing")) void doStop();
-    else void doSync();
+    else requestSync();
+  });
+  document.getElementById("updateBtn").addEventListener("click", requestSync);
+  document.getElementById("rescanConfirmBtn").addEventListener("click", () => {
+    closeRescanConfirm();
+    void doSync();
   });
   document
-    .getElementById("updateBtn")
-    .addEventListener("click", () => void doSync());
+    .getElementById("rescanCancelBtn")
+    .addEventListener("click", closeRescanConfirm);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("rescanModal").hidden) {
+      closeRescanConfirm();
+    }
+  });
   void poll();
 }

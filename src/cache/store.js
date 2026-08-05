@@ -61,6 +61,20 @@ function writeJson(file, obj) {
 }
 
 /**
+ * Write JSON atomically without indentation — for large, machine-only caches
+ * (e.g. the OA state) where pretty-printing would bloat the file and slow the
+ * parse on every incremental Re-Scan.
+ * @param {string} file
+ * @param {any} obj
+ */
+function writeJsonCompact(file, obj) {
+  ensureDir(path.dirname(file));
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(obj)}\n`);
+  fs.renameSync(tmp, file);
+}
+
+/**
  * Append rows to an NDJSON file (one compact JSON object per line).
  * @param {string} file
  * @param {object[]} rows
@@ -130,6 +144,7 @@ module.exports = {
   ensureDir,
   readJson,
   writeJson,
+  writeJsonCompact,
   appendNdjson,
   truncatePartialLine,
   readNdjson,

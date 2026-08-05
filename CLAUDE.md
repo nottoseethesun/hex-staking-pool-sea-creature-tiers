@@ -19,8 +19,8 @@ Companion guides:
 - Security: [docs/claude/CLAUDE-SECURITY.md](docs/claude/CLAUDE-SECURITY.md)
 - CI / merge protocol: [docs/claude/CLAUDE-CI.md](docs/claude/CLAUDE-CI.md)
 - Disclaimer editing: [docs/claude/CLAUDE-DISCLAIMER.md](docs/claude/CLAUDE-DISCLAIMER.md)
-- OA-wallet methodology: [docs/oa-wallet-estimation.md](docs/oa-wallet-estimation.md)
-- Spec: [docs/hex-sea-creature-league-spec.md](docs/hex-sea-creature-league-spec.md)
+- OA-wallet methodology: [docs/architecture/scan/oa-wallet-estimation.md](docs/architecture/scan/oa-wallet-estimation.md)
+- Spec: [docs/architecture/scan/hex-sea-creature-league-spec.md](docs/architecture/scan/hex-sea-creature-league-spec.md)
 
 ---
 
@@ -95,22 +95,28 @@ npm run check    # the full gate (lint + audits + tests + >=80% coverage)
 ## Architecture Decisions
 
 - **Immutable, no-TTL cache.** Blockchain data never changes, so
-  `data/<chain>/` has no expiry: `scan`/`oa` resume from a checkpoint and top up
-  only new blocks. The active-shares map is rebuilt by replaying the append-only
-  `stakes.ndjson` — never cached separately (minimal footprint). Minimal ledger
-  rows omit tx hashes (not needed to rebuild state or reconcile).
+  `data/<chain>/` has no expiry: `scan`/`resolve`/`oa` resume from batched
+  checkpoints and top up only new blocks. A **sticky tip** holds the pinned block
+  fixed across restarts until a report completes (`cycle.json`), so those resume
+  checkpoints stay valid instead of being invalidated by an advancing head. A
+  **Re-Scan** then extends the cached scan/resolve/OA state over only the new
+  block range (`oa-state.json`, `resolve-state.json`; a delta-BFS with an exact
+  full-rebuild fallback) rather than rebuilding from the deploy block. The
+  active-shares map is rebuilt by replaying the append-only `stakes.ndjson` —
+  never cached separately (minimal footprint). Minimal ledger rows omit tx hashes
+  (not needed to rebuild state or reconcile).
 - **OA cluster = >=20% funded within <=3 hops.** Implemented as an efficient
   forward BFS from the OA (provably the same reachable set as reverse-spidering
   from every staker), with a per-candidate inbound denominator and a per-asset
   (HEX or native) threshold. Contracts are terminal. See
-  [docs/oa-wallet-estimation.md](docs/oa-wallet-estimation.md).
+  [docs/architecture/scan/oa-wallet-estimation.md](docs/architecture/scan/oa-wallet-estimation.md).
 - **Wrapped stakes resolve to their true holder.** A `resolve` stage (scan →
   resolve → oa → report) re-attributes each active stake: Native stakes pass
   through, HSI stakes re-key to the HSIM-resolved owner, and $MAXI is looked
   through to its token holders pro-rata (exact BigInt; rounding dust kept under
   the pool address so Σ is conserved and reconciliation stays exact). OA holders
   of $MAXI are excluded by the same OA-set removal. See
-  [docs/oa-wallet-estimation.md](docs/oa-wallet-estimation.md).
+  [docs/architecture/scan/oa-wallet-estimation.md](docs/architecture/scan/oa-wallet-estimation.md).
 - **Report is a pure transform.** `report` builds `out/` from cache + one pinned
   tip read; the dashboard and `whereami` run fully offline from `out/summary.json`.
 - **No mirroring across the CJS/ESM boundary.** The server pre-formats every

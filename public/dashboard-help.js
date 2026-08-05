@@ -89,6 +89,16 @@ function closeHow() {
   document.getElementById("howModal").hidden = true;
 }
 
+/** Open the "Scan & Re-Scan" info modal. */
+function openScanInfo() {
+  document.getElementById("scanInfoModal").hidden = false;
+}
+
+/** Close the "Scan & Re-Scan" info modal. */
+function closeScanInfo() {
+  document.getElementById("scanInfoModal").hidden = true;
+}
+
 /** Open the Donations modal. */
 function openDonate() {
   document.getElementById("donateModal").hidden = false;
@@ -126,6 +136,12 @@ export function initHelp() {
   });
   document.getElementById("tsharesInfoBtn").addEventListener("click", openHow);
   document.getElementById("howCloseBtn").addEventListener("click", closeHow);
+  document
+    .getElementById("scanInfoBtn")
+    .addEventListener("click", openScanInfo);
+  document
+    .getElementById("scanInfoCloseBtn")
+    .addEventListener("click", closeScanInfo);
   document.getElementById("showDonateBtn").addEventListener("click", () => {
     closeMenu(menu, btn);
     openDonate();
@@ -144,6 +160,7 @@ export function initHelp() {
     if (e.key !== "Escape") return;
     if (!document.getElementById("howModal").hidden) closeHow();
     if (!document.getElementById("donateModal").hidden) closeDonate();
+    if (!document.getElementById("scanInfoModal").hidden) closeScanInfo();
   });
   document.addEventListener("click", (e) => {
     if (!btn.contains(e.target) && !menu.contains(e.target)) {

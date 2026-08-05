@@ -9,7 +9,7 @@
 
 const { createClient } = require("./client");
 const { getRpcCache } = require("./cache");
-const { rpcUrlFor, fallbackUrlFor } = require("../config");
+const { effectiveRpcUrls } = require("../config");
 
 /**
  * Build a guarded RPC client for a chain from config. When `config.rpcCache` is
@@ -20,11 +20,26 @@ const { rpcUrlFor, fallbackUrlFor } = require("../config");
  */
 function makeClient(config, chainKey) {
   return createClient({
-    url: rpcUrlFor(config, chainKey),
-    fallbackUrl: fallbackUrlFor(config, chainKey),
+    urls: effectiveRpcUrls(config, chainKey),
     concurrency: config.concurrency,
     cache: config.rpcCache ? getRpcCache(chainKey) : null,
   });
 }
 
-module.exports = { makeClient };
+/**
+ * Build a POOL of guarded clients — one per configured RPC URL, each pinned to a
+ * single endpoint with its own adaptive limiter + unsupported-method set. The OA
+ * wallet sweep shards its independent per-address batches across the pool for a
+ * near-linear speedup; with one URL the pool has one client (no sharding).
+ * @param {object} config
+ * @param {"eth"|"pls"} chainKey
+ * @returns {object[]}
+ */
+function makeClientPool(config, chainKey) {
+  const cache = config.rpcCache ? getRpcCache(chainKey) : null;
+  return effectiveRpcUrls(config, chainKey).map((url) =>
+    createClient({ urls: [url], concurrency: config.concurrency, cache }),
+  );
+}
+
+module.exports = { makeClient, makeClientPool };

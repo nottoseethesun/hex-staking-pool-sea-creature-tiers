@@ -19,10 +19,20 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { config } = require("./src/config");
+const { config, describeConfig } = require("./src/config");
 const { log } = require("./src/log");
 const { updateStatus } = require("./src/pipeline");
 const hexleague = require("./src/hexleague");
+const { runPreflight, formatPreflight } = require("./src/rpc/trace-preflight");
+const { hasVault } = require("./src/secrets/store");
+const { storeSecrets, unlockVault } = require("./src/secrets/service");
+const { promptHidden } = require("./src/secrets/prompt");
+const { collectRpcSecrets } = require("./src/secrets/moralis-setup");
+const {
+  startUnlockSocket,
+  socketPath: unlockSocketPath,
+  handleCommand: handleVaultCommand,
+} = require("./src/secrets/unlock-socket");
 const {
   readUpdateStatus,
   writeUpdateStatus,
@@ -35,6 +45,17 @@ const {
   buildPoolData,
 } = require("./src/report/pool-data");
 const { pidPath, writePid, clearPid } = require("./src/server-pid");
+
+// Startup trace-capability preflight result; the dashboard masks the UI when it
+// fails and scanning is gated on it. Refreshed after a vault unlock.
+let preflightState = { ok: true };
+
+// Server-domain ("[hexleague server]") startup banner — azure on very dark gray
+// with a rocket each side, echoing the sibling lp-ranger tool's boot banners.
+// Passed through log.info, which injects the timestamp after the tag.
+const SERVER_STARTED =
+  "\x1b[38;2;0;191;255;48;2;25;25;25m[hexleague server] " +
+  "🚀 Started. 🚀\x1b[0m";
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const SUMMARY_PATH = path.join(OUT_DIR, "summary.json");
@@ -206,6 +227,18 @@ function handleUpdate(req, res) {
     sendJson(res, 405, { error: "Use POST to trigger an update." });
     return;
   }
+  if (!preflightState.ok) {
+    log.warn(
+      "[update] blocked — trace preflight failing; unlock a trace RPC " +
+        "(Help → Secrets) or set ETH_RPC_URLS / PLS_RPC_URLS.",
+    );
+    sendJson(res, 409, {
+      error:
+        "Scanning is disabled: the trace-capability preflight failed. Unlock a " +
+        "trace RPC (Help → Secrets) or set ETH_RPC_URLS / PLS_RPC_URLS.",
+    });
+    return;
+  }
   const status = updateStatus(readJson(SUMMARY_PATH, null), Date.now());
   if (!status.updateEnabled) {
     sendJson(res, 409, { error: status.reason || "Update not available." });
@@ -219,16 +252,15 @@ function handleUpdate(req, res) {
   // the pipeline then owns the progress writes and clears the file when done.
   writeUpdateStatus(0, "Starting");
   sendJson(res, 202, { started: true });
-  hexleague
-    .update({ config, log })
-    .then(() => log.info("[update] complete"))
-    .catch((err) => {
-      if (err && err.name === "AbortError") {
-        log.info("[update] stopped by request");
-      } else {
-        log.error("[update] failed: %s", err.message);
-      }
-    });
+  hexleague.update({ config, log }).catch((err) => {
+    // The facade logs "[hexleague sync] 🚀 Started."/"✅ Complete."; surface the
+    // two non-happy outcomes here (it has the AbortError context).
+    if (err && err.name === "AbortError") {
+      log.info("[hexleague sync] ⏹ Stopped by request.");
+    } else {
+      log.error("[hexleague sync] ❌ Failed: %s", err.message);
+    }
+  });
 }
 
 /**
@@ -281,6 +313,155 @@ function handleOpenapi(res) {
 }
 
 /**
+ * Re-run the trace preflight (skipped when disabled) and store the result so the
+ * dashboard mask + scan gate reflect the latest RPC set (e.g. after a vault
+ * unlock adds a private trace endpoint).
+ * @returns {Promise<object>}
+ */
+async function refreshPreflight() {
+  const result = config.tracePreflight
+    ? await runPreflight(config)
+    : { ok: true, skipped: true };
+  // hasVault lets the dashboard tell a first run (no password yet — a friendly
+  // setup panel) from a returning misconfiguration (the red problem mask).
+  preflightState = { ...result, hasVault: hasVault() };
+  return preflightState;
+}
+
+/** Log the current preflight verdict (a warning + report when it fails). */
+function logPreflight() {
+  if (preflightState.ok) {
+    log.info(
+      "[preflight] %s",
+      preflightState.skipped
+        ? "skipped (TRACE_PREFLIGHT=0)"
+        : `OK — >=${preflightState.min} trace-capable RPC(s) per chain`,
+    );
+    return;
+  }
+  log.warn(
+    "[preflight] FAILED — scanning is disabled until each chain has >=%d " +
+      "trace_filter RPC(s):\n%s\nUnlock a private trace RPC (dashboard Help → " +
+      "Secrets, or `hexleague secret unlock`), or set ETH_RPC_URLS / PLS_RPC_URLS.",
+    preflightState.min,
+    formatPreflight(preflightState),
+  );
+}
+
+/**
+ * Headless startup: prompt on the CLI to (optionally) seal the generic + Moralis
+ * RPC URLs and unlock the vault, so a browserless host can supply the private
+ * trace endpoints the same way the dashboard's Secrets dialog would.
+ * @param {object} lg
+ */
+async function headlessUnlock(lg) {
+  if (!hasVault()) {
+    const secrets = await collectRpcSecrets();
+    if (Object.keys(secrets).length) {
+      storeSecrets(secrets, await promptHidden("Set a vault passphrase: "));
+      lg.info("[headless] sealed %d secret(s).", Object.keys(secrets).length);
+    }
+  }
+  const pass = await promptHidden(
+    "Vault passphrase to unlock (blank to skip): ",
+  );
+  if (!pass) return;
+  try {
+    lg.info(
+      "[headless] unlocked: %s",
+      unlockVault(pass).join(", ") || "(none)",
+    );
+  } catch (e) {
+    lg.error("[headless] unlock failed: %s", e.message);
+  }
+}
+
+/**
+ * Read a size-capped JSON request body, resolving null on parse/transport error.
+ * @param {import('http').IncomingMessage} req
+ * @returns {Promise<object|null>}
+ */
+function readJsonBody(req) {
+  return new Promise((resolve) => {
+    let buf = "";
+    req.on("data", (c) => {
+      buf += c;
+      if (buf.length > 65536) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(buf || "{}"));
+      } catch {
+        resolve(null);
+      }
+    });
+    req.on("error", () => resolve(null));
+  });
+}
+
+/**
+ * Log a dashboard vault action for operator visibility — slot NAMES only, never
+ * the passphrase or any secret value. `store`/`unlock` are narrated; `status`
+ * (polled) is left quiet.
+ * @param {object} cmd the request body
+ * @param {object} reply the handler's reply
+ */
+function logVaultAction(cmd, reply) {
+  if (cmd.action !== "store" && cmd.action !== "unlock") return;
+  if (!reply.ok) {
+    log.warn("[vault] %s (dashboard) failed: %s", cmd.action, reply.error);
+    return;
+  }
+  if (cmd.action === "store") {
+    const names = Array.isArray(reply.stored) ? reply.stored : [reply.stored];
+    log.info(
+      "[vault] sealed %d secret(s) (dashboard): %s",
+      names.length,
+      names.join(", "),
+    );
+  } else {
+    log.info(
+      "[vault] unlocked (dashboard): %s",
+      (reply.unlocked || []).join(", ") || "(none)",
+    );
+  }
+}
+
+/**
+ * POST /api/vault — the dashboard's local secrets channel (same origin as the
+ * read-only UI, localhost-only). Seal a secret ({ action:"store", name, value,
+ * passphrase }), unlock the vault into memory ({ action:"unlock", passphrase }),
+ * or read status ({ action:"status" }). Mirrors the Unix-socket API.
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+async function handleVault(req, res) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { error: "Use POST." });
+  }
+  const cmd = await readJsonBody(req);
+  if (!cmd || typeof cmd.action !== "string") {
+    return sendJson(res, 400, { error: "Expected a JSON { action, … } body." });
+  }
+  const reply = handleVaultCommand(cmd);
+  logVaultAction(cmd, reply);
+  if (reply.ok && cmd.action === "unlock") {
+    reply.preflight = await refreshPreflight();
+    logPreflight(); // show whether the new endpoints cleared the trace preflight
+  }
+  return sendJson(res, reply.ok ? 200 : 400, reply);
+}
+
+/**
+ * GET /api/preflight — the current trace-capability verdict; the dashboard masks
+ * the UI and gates scanning when it isn't ok.
+ * @param {import('http').ServerResponse} res
+ */
+function handlePreflight(res) {
+  sendJson(res, 200, preflightState);
+}
+
+/**
  * Top-level request router.
  * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
@@ -301,6 +482,8 @@ function handleRequest(req, res) {
   if (url.pathname === "/api/update") return handleUpdate(req, res);
   if (url.pathname === "/api/disclaimer") return handleDisclaimer(res);
   if (url.pathname === "/api/openapi.json") return handleOpenapi(res);
+  if (url.pathname === "/api/vault") return handleVault(req, res);
+  if (url.pathname === "/api/preflight") return handlePreflight(res);
   // Browsers auto-request /favicon.ico at the root; map it to the icon set.
   if (url.pathname === "/favicon.ico") {
     return serveStatic("/images/favicons/favicon.ico", res);
@@ -309,22 +492,48 @@ function handleRequest(req, res) {
 }
 
 /**
- * Start the dashboard server.
- * @returns {import('http').Server}
+ * Log the effective config summary at startup (real facts only — never the
+ * secret RPC URLs), noting the `.env` source + size when present, à la the
+ * sibling lp-ranger tool's `[config] loadConfig:` line.
  */
-function start() {
+function logConfigSummary() {
+  const envPath = path.join(process.cwd(), ".env");
+  let src = "no .env (defaults + env vars)";
+  try {
+    src = `.env ${envPath} (${fs.statSync(envPath).size} bytes)`;
+  } catch {
+    // no .env — running on built-in defaults + environment variables
+  }
+  log.info("[config] loadConfig: %s — %s", describeConfig(config), src);
+}
+
+/**
+ * Start the dashboard server (after a trace-capability preflight).
+ * @returns {Promise<import('http').Server>}
+ */
+async function start() {
+  log.info(SERVER_STARTED);
+  logConfigSummary();
+  if (process.argv.includes("--headless") || process.env.HEADLESS === "1") {
+    await headlessUnlock(log);
+  }
+  await refreshPreflight();
+  logPreflight();
   const server = http.createServer(handleRequest);
   const pidFile = pidPath(config);
+  const unlockSocket = startUnlockSocket(config.port, log);
   server.listen(config.port, config.host, () => {
     writePid(pidFile);
     log.info(
-      "hexleague dashboard: http://%s:%d (read-only)",
+      "[hexleague server] dashboard: http://%s:%d (read-only)",
       config.host,
       config.port,
     );
   });
   const shutdown = () => {
     clearPid(pidFile);
+    unlockSocket.close();
+    fs.rmSync(unlockSocketPath(config.port), { force: true });
     process.exit(0);
   };
   process.once("SIGTERM", shutdown);
@@ -332,6 +541,11 @@ function start() {
   return server;
 }
 
-if (require.main === module) start();
+if (require.main === module) {
+  start().catch((err) => {
+    log.error("[server] failed to start: %s", err.message);
+    process.exit(1);
+  });
+}
 
 module.exports = { start, handleRequest };

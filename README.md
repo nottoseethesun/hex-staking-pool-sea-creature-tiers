@@ -197,12 +197,13 @@ does not exist here. Supply-chain hygiene is still enforced: `npm run check`
 ## Development
 
 For the architecture and the engineering internals, see
-[docs/architecture.md](docs/architecture.md) and
+[docs/architecture/architecture.md](docs/architecture/architecture.md) and
 [docs/engineering.md](docs/engineering.md). The OA-wallet methodology is
 documented in detail in
-[docs/oa-wallet-estimation.md](docs/oa-wallet-estimation.md), and the full
+[docs/architecture/scan/oa-wallet-estimation.md](docs/architecture/scan/oa-wallet-estimation.md),
+and the full
 functional specification in
-[docs/hex-sea-creature-league-spec.md](docs/hex-sea-creature-league-spec.md).
+[docs/architecture/scan/hex-sea-creature-league-spec.md](docs/architecture/scan/hex-sea-creature-league-spec.md).
 
 ---
 

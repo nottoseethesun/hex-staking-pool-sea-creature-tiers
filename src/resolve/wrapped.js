@@ -130,12 +130,15 @@ function restoreBalances(st, snap) {
  * batches, so an interrupted scan resumes instead of restarting.
  * @param {object} client guarded RPC client
  * @param {object} opts { token, fromBlock, toBlock, startChunk, signal?,
- *   onProgress?, load?, save? }
- * @returns {Promise<{ balances: Map<string, bigint>, supply: bigint }>}
+ *   onProgress?, load?, save?, prior? } — `prior` (a serializeBalances snapshot)
+ *   seeds the balance map so an incremental scan extends it over the new range.
+ * @returns {Promise<{ balances: Map<string, bigint>, supply: bigint,
+ *   snapshot: object }>}
  */
 async function scanWrapperBalances(client, opts) {
   const { token, fromBlock, toBlock, startChunk, signal, onProgress } = opts;
   const state = { balances: new Map() };
+  if (opts.prior) restoreBalances(state, opts.prior); // extend a prior cycle
   const span = Math.max(1, toBlock - fromBlock);
   await runResumableLogScan(client, {
     address: token,
@@ -154,7 +157,8 @@ async function scanWrapperBalances(client, opts) {
       ? (p) => onProgress(Math.min(1, Math.max(0, (p.to - fromBlock) / span)))
       : undefined,
   });
-  return finalizeBalances(state.balances);
+  const { balances, supply } = finalizeBalances(state.balances);
+  return { balances, supply, snapshot: serializeBalances(state) };
 }
 
 module.exports = {

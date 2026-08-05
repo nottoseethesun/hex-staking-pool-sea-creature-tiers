@@ -399,6 +399,12 @@ thead th {
   flex: 0 0 auto;
 }
 
+/* `.field` sets display:flex, which would otherwise beat the [hidden] UA rule
+   and leave a "hidden" field visible — restore hiding for wizard step toggles. */
+.field[hidden] {
+  display: none;
+}
+
 .field label {
   color: var(--muted);
   font-size: 0.8rem;
@@ -774,7 +780,7 @@ thead th {
 }
 
 .modal-box {
-  max-width: 520px;
+  max-width: min(92vw, 780px);
   max-height: 85vh;
   padding: 1.4rem 1.6rem;
   overflow-y: auto;
@@ -787,6 +793,13 @@ thead th {
   margin: 1.1rem 0 0.3rem;
   color: var(--hex-orange);
   font-size: 1.1rem;
+}
+
+/* Space each RPC field from the input above it in the Secrets wizard (Generic +
+   Moralis screens) — the nested fields get no inter-field gap otherwise, so the
+   labels would sit flush against the previous input. */
+.rpc-fields .field {
+  margin-top: 0.9rem;
 }
 
 .modal-box.warn {
@@ -925,6 +938,50 @@ body:not(.no-report).syncing main {
 
 .lock-overlay[hidden] {
   display: none;
+}
+
+/* Trace-preflight failure mask: sits below modals (z-index 20) so its
+   "Open Secrets" button can raise the Secrets dialog above it. */
+.preflight-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgb(10 12 18 / 92%);
+}
+
+.preflight-overlay[hidden] {
+  display: none;
+}
+
+/* max-height caps to the padded viewport and scrolls inside, so the "Open
+   Secrets" action stays reachable on short viewports instead of overflowing. */
+.preflight-box {
+  max-width: 460px;
+  max-height: calc(100vh - 3rem);
+  padding: 1.5rem 1.8rem;
+  overflow-y: auto;
+  border: 1px solid rgb(255 107 107 / 60%);
+  border-radius: 14px;
+  background: rgb(24 16 16 / 98%);
+}
+
+.preflight-box h2 {
+  margin-top: 0;
+  color: #ff6b6b;
+}
+
+/* First run (no vault yet): a welcoming azure panel, not a red error. */
+.preflight-box.setup {
+  border-color: rgb(0 191 255 / 55%);
+  background: rgb(14 20 28 / 98%);
+}
+
+.preflight-box.setup h2 {
+  color: #4db6ff;
 }
 
 .lock-msg {

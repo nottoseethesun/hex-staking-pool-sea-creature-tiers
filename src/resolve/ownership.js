@@ -106,12 +106,14 @@ function restoreState(s, snap) {
  * instead of restarting.
  * @param {object} client guarded RPC client
  * @param {object} opts { hsim, fromBlock, toBlock, startChunk, signal?,
- *   onProgress?, load?, save? }
- * @returns {Promise<Map<string, string>>}
+ *   onProgress?, load?, save?, prior? } — `prior` (a serializeState snapshot)
+ *   seeds the replay so an incremental scan extends it over the new range only.
+ * @returns {Promise<{ owners: Map<string, string>, snapshot: object }>}
  */
 async function buildHsiOwnership(client, opts) {
   const { hsim, fromBlock, toBlock, startChunk, signal, onProgress } = opts;
   const s = newState();
+  if (opts.prior) restoreState(s, opts.prior); // extend a prior cycle's replay
   const span = Math.max(1, toBlock - fromBlock);
   await runResumableLogScan(client, {
     address: hsim,
@@ -132,7 +134,7 @@ async function buildHsiOwnership(client, opts) {
       ? (p) => onProgress(Math.min(1, Math.max(0, (p.to - fromBlock) / span)))
       : undefined,
   });
-  return finalizeOwners(s);
+  return { owners: finalizeOwners(s), snapshot: serializeState(s) };
 }
 
 module.exports = {

@@ -6,6 +6,7 @@
 - [Data flow](#data-flow)
 - [Layers](#layers)
 - [Key decisions](#key-decisions)
+- [Scan architecture](#scan-architecture)
 
 ## Overview
 
@@ -33,6 +34,10 @@ ledgers, apply the resolution, read the pinned tip once, and write
 drive this pipeline through `hexleague.update()` (cancellable with
 `hexleague.stop()`); lookups (`whereami` and the dashboard) read
 `out/summary.json` without touching the chain.
+
+A first run builds this end to end from the deploy block; a **Re-Scan** advances
+the pinned tip and extends each stage's cached state over only the new block
+range (see [Scan architecture](#scan-architecture)).
 
 ## Layers
 
@@ -67,3 +72,19 @@ drive this pipeline through `hexleague.update()` (cancellable with
 See the "Architecture Decisions" section of `CLAUDE.md`: the immutable cache, the
 forward-BFS OA construction, the pure-transform report, the absence of any
 CommonJS/ESM mirroring, and BigInt arithmetic throughout.
+
+## Scan architecture
+
+The scan pipeline's methodology and data model are documented under
+[`scan/`](scan/):
+
+- [Sea-Creature league spec](scan/hex-sea-creature-league-spec.md) — the full
+  specification: stake attribution, wrapped-stake ($MAXI / HSI) look-through, the
+  Origin-Address exclusion, and the league ladder.
+- [OA-wallet estimation](scan/oa-wallet-estimation.md) — the Origin-Address
+  funding-cluster methodology (forward BFS, the ≥20%-funded-within-≤3-hops rule),
+  and how a Re-Scan extends the cluster incrementally over the new block range.
+
+Operational details — commands, the `data/<chain>/` cache layout, crash-safety,
+the incremental Re-Scan mechanics, and the HTTP API — live in
+[`../engineering.md`](../engineering.md).

@@ -117,6 +117,15 @@ function buildProviders(url, fallbackUrl) {
 }
 
 /**
+ * Build the endpoint list from an ordered array of URLs (primary first).
+ * @param {string[]} urls
+ * @returns {{ name: string, rpc: object }[]}
+ */
+function buildProvidersFromList(urls) {
+  return urls.map((u) => ({ name: u, rpc: buildProvider(u) }));
+}
+
+/**
  * Whether an error is a transient failure worth failing over / retrying.
  * @param {any} err
  * @returns {boolean}
@@ -288,7 +297,11 @@ function minimalLog(logEntry) {
  */
 function createClient(opts) {
   const { url, fallbackUrl = null, concurrency = 4, cache = null } = opts;
-  const providers = opts.providers ?? buildProviders(url, fallbackUrl);
+  const providers =
+    opts.providers ??
+    (opts.urls
+      ? buildProvidersFromList(opts.urls)
+      : buildProviders(url, fallbackUrl));
   // Concurrency self-tunes to the endpoint: it eases down on overload
   // (520/5xx/429/timeout) and recovers on sustained success. The configured
   // value is the ceiling; each change is logged so the adjustment is visible.

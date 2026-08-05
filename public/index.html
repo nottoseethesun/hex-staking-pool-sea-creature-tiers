@@ -44,6 +44,15 @@
           <button type="button" id="syncBtn" class="sync-btn" disabled>
             Sync
           </button>
+          <button
+            type="button"
+            id="scanInfoBtn"
+            class="info-btn"
+            aria-label="About Scan and Re-Scan"
+            title="About Scan and Re-Scan"
+          >
+            i
+          </button>
           <div
             id="syncBadge"
             class="sync-badge"
@@ -67,6 +76,14 @@
             <ul id="helpMenu" class="help-menu" hidden>
               <li>
                 <button type="button" id="showHowBtn">How It Works</button>
+              </li>
+              <li>
+                <button type="button" id="showScanDetailsBtn">
+                  Scan Details
+                </button>
+              </li>
+              <li>
+                <button type="button" id="showSecretsBtn">Secrets</button>
               </li>
               <li>
                 <button type="button" id="showDonateBtn">Donate</button>
@@ -280,6 +297,214 @@
     </div>
 
     <div
+      id="scanInfoModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scanInfoTitle"
+      hidden
+    >
+      <div class="modal-box">
+        <h2 id="scanInfoTitle">Scan &amp; Re-Scan</h2>
+        <p>
+          This app reads HEX stakes straight from Ethereum and PulseChain over
+          JSON-RPC, attributes every T-Share to its true holder, and excludes the
+          Origin-Address (OA) funding cluster. It is read-only — it holds no keys
+          and signs nothing.
+        </p>
+        <p>
+          <strong>Scan</strong> is the first, full build: it reads both chains
+          from the HEX contract's deploy block, resolves wrapped stakes (HSIs and
+          $MAXI), traces the OA cluster, and writes the report. It can take hours
+          to days.
+        </p>
+        <p>
+          <strong>Re-Scan</strong> brings the report up to date by extending the
+          saved data over only the <em>new</em> blocks — it never re-reads from
+          the deploy block. Re-checking the OA cluster still sweeps a large set of
+          wallets, so a refresh scales with the time since the last scan.
+        </p>
+        <p>
+          Tip: for a first build from GitHub, a recent full scan may be published
+          there as a Release asset — <code>hexleague seed</code> installs it and
+          skips the cold scan.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="scanInfoCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="scanDetailsModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scanDetailsTitle"
+      hidden
+    >
+      <div class="modal-box">
+        <h2 id="scanDetailsTitle">Scan Details</h2>
+        <p class="hint">
+          The block each view is pinned to, and what a re-scan would cost. This
+          reads the local cache only — it never starts a scan.
+        </p>
+        <div id="scanDetailsBody" class="scan-details"><p>Loading…</p></div>
+        <div class="modal-actions">
+          <button type="button" id="scanDetailsCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="rescanModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rescanTitle"
+      hidden
+    >
+      <div class="modal-box warn">
+        <div class="modal-head">
+          <svg class="warn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 3 L22 20 H2 Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <line
+              x1="12"
+              y1="9"
+              x2="12"
+              y2="14"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <circle cx="12" cy="17" r="1.1" fill="currentColor" />
+          </svg>
+          <h2 id="rescanTitle">Are You Sure?</h2>
+        </div>
+        <p>
+          Re-Scan updates the saved report to the latest blocks. It extends the
+          scan over only the new range — never from the deploy block — but
+          re-checking the Origin-Address cluster still sweeps a large set of
+          wallets, so it can take a while after a long gap. Your current results
+          stay in place until it finishes.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="rescanConfirmBtn">Re-Scan</button>
+          <button type="button" id="rescanCancelBtn" class="secondary">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="secretsModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="secretsTitle"
+      hidden
+    >
+      <div class="modal-box">
+        <h2 id="secretsTitle">Secrets</h2>
+        <p class="hint" id="secretsIntro">
+          Unlock your vault to load your RPC endpoints.
+        </p>
+        <div class="field" id="secretsPassField">
+          <label for="secretsPass" id="secretsPassLabel">Vault passphrase</label>
+          <input id="secretsPass" type="password" autocomplete="new-password" />
+        </div>
+        <div class="field" id="secretsConfirmField" hidden>
+          <label for="secretsConfirm">Confirm passphrase</label>
+          <input id="secretsConfirm" type="password" autocomplete="new-password" />
+        </div>
+        <div id="secretsGenericFields" class="rpc-fields" hidden>
+          <h3>Generic RPC nodes (no key)</h3>
+          <div class="field">
+            <label for="ethGeneric1">Ethereum RPC URL 1</label>
+            <input id="ethGeneric1" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="ethGeneric2">Ethereum RPC URL 2</label>
+            <input id="ethGeneric2" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="ethGeneric3">Ethereum RPC URL 3</label>
+            <input id="ethGeneric3" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="plsGeneric1">PulseChain RPC URL 1</label>
+            <input id="plsGeneric1" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="plsGeneric2">PulseChain RPC URL 2</label>
+            <input id="plsGeneric2" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="plsGeneric3">PulseChain RPC URL 3</label>
+            <input id="plsGeneric3" type="password" autocomplete="new-password" />
+          </div>
+        </div>
+        <div id="secretsFields" class="rpc-fields" hidden>
+          <h3>Moralis RPC nodes</h3>
+          <div class="field">
+            <label for="ethRpc1">Ethereum RPC URL 1</label>
+            <input id="ethRpc1" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="ethRpc2">Ethereum RPC URL 2</label>
+            <input id="ethRpc2" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="ethRpc3">Ethereum RPC URL 3</label>
+            <input id="ethRpc3" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="plsRpc1">PulseChain RPC URL 1</label>
+            <input id="plsRpc1" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="plsRpc2">PulseChain RPC URL 2</label>
+            <input id="plsRpc2" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="plsRpc3">PulseChain RPC URL 3</label>
+            <input id="plsRpc3" type="password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="moralisGeneralKey">
+              Moralis General API Key (optional)
+            </label>
+            <input
+              id="moralisGeneralKey"
+              type="password"
+              autocomplete="new-password"
+            />
+          </div>
+        </div>
+        <p id="secretsStatus" aria-live="polite"></p>
+        <div class="modal-actions">
+          <button type="button" id="secretsBackBtn" class="secondary" hidden>
+            ← Back
+          </button>
+          <button type="button" id="secretsAddBtn" class="secondary" hidden>
+            Add / replace RPC URLs
+          </button>
+          <button type="button" id="secretsPrimaryBtn">Unlock</button>
+          <button type="button" id="secretsCloseBtn" class="secondary">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
       id="donateModal"
       class="modal"
       role="dialog"
@@ -383,6 +608,30 @@
       <div class="lock-msg">
         You declined the disclaimer.<br />
         Reload the page to continue.
+      </div>
+    </div>
+
+    <div id="preflightOverlay" class="preflight-overlay" hidden>
+      <div class="preflight-box" id="preflightBox">
+        <h2 id="preflightTitle">⚠ RPC Configuration Problem</h2>
+        <p id="preflightDetail">Scanning is disabled.</p>
+        <p>
+          Each chain needs at least two RPC endpoints that serve
+          <code>trace_filter</code> over historical blocks — the OA scan requires
+          it.
+        </p>
+        <p id="preflightActionProblem">
+          Unlock a private trace RPC (e.g. your Moralis node), or set
+          <code>ETH_RPC_URLS</code> / <code>PLS_RPC_URLS</code>, right here by
+          clicking the button below:
+        </p>
+        <p id="preflightActionSetup" hidden>
+          Add your trace-capable RPC node URLs (e.g. your Moralis nodes) right
+          here by clicking the button below:
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="preflightSecretsBtn">Open Secrets →</button>
+        </div>
       </div>
     </div>
 

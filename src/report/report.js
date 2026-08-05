@@ -192,6 +192,46 @@ function mergeLabels(...maps) {
 }
 
 /**
+ * Mark each chain's sync cycle complete — a written report is the completion
+ * event, so the next sync pins a fresh tip instead of holding the reported
+ * (sticky) one. A no-op for a chain that has no cycle marker yet.
+ * @param {string[]} [chains] chain keys to complete (defaults to both)
+ */
+function completeCycles(chains = ["eth", "pls"]) {
+  for (const chainKey of chains) {
+    const cycle = cp.loadCycle(chainKey);
+    if (cycle) cp.saveCycle(chainKey, { tip: cycle.tip, complete: true });
+  }
+}
+
+/**
+ * Per-chain scan facts for the dashboard "Scan Details" dialog: the pinned tip
+ * (block + UTC time), the deploy-block span, the OA sweep size, and the last
+ * measured inbound-sweep duration (the dominant re-scan cost). Missing OA data
+ * degrades to nulls rather than inventing numbers.
+ * @param {string} chainKey
+ * @param {object} chain loadChain result ({ tip, oaJson })
+ * @returns {object}
+ */
+function scanStats(chainKey, chain) {
+  const oa = chain.oaJson || {};
+  const tipBlock = chain.tip.block;
+  const deployBlock = oa.deployBlock ?? cp.loadDeployBlock(chainKey);
+  const hasDeploy = typeof deployBlock === "number";
+  return {
+    tipBlock,
+    timeUtc: chain.tip.timeUtc,
+    currentDay: chain.tip.currentDay ?? null,
+    deployBlock: hasDeploy ? deployBlock : null,
+    blockSpan: hasDeploy ? tipBlock - deployBlock : null,
+    candidateStakerCount: oa.candidateStakerCount ?? null,
+    memberCount: oa.memberCount ?? (oa.members ? oa.members.length : null),
+    reachableCount: oa.reachableCount ?? null,
+    oaSweep: oa.sweep ?? null,
+  };
+}
+
+/**
  * Generate the full report from cache (+ optional live tip / contract flags).
  * @param {object} ctx { clients: { eth, pls }, log }
  * @returns {Promise<object>} { summary, reconciliation }
@@ -215,6 +255,7 @@ async function generateReport(ctx) {
     eth: stakeKindsBlock(eth.subtotals),
     pls: stakeKindsBlock(pls.subtotals),
   };
+  summary.scan = { eth: scanStats("eth", eth), pls: scanStats("pls", pls) };
   summary.labels = mergeLabels(eth.labels, pls.labels);
   logStakeKinds(log, "eth", eth.subtotals);
   logStakeKinds(log, "pls", pls.subtotals);
@@ -231,6 +272,7 @@ async function generateReport(ctx) {
     );
   }
   writeOutputs(summary, contractFlags, { eth: eth.oaJson, pls: pls.oaJson });
+  completeCycles();
   log.info(
     "[report] wrote out/ — eth reconciled=%s, pls reconciled=%s",
     eth.rec.ok,
@@ -245,4 +287,6 @@ module.exports = {
   enrichContracts,
   writeOutputs,
   stakeKindsBlock,
+  completeCycles,
+  scanStats,
 };

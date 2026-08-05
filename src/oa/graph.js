@@ -6,6 +6,16 @@
  * predecessor, and capped evidence tx hashes. Contracts are terminal (recorded,
  * not propagated). This reachable set is provably identical to reverse-spidering
  * <= maxHops from every staker, but rooted at one address instead of ~236k.
+ *
+ * `deltaBfs` extends an already-built reachable set to a newer tip without
+ * rescanning history: existing nodes are rescanned only over the new block
+ * range, newly-joined nodes over the full range (a wallet that only now joined
+ * the cluster may have funded others at any past block), and numerators
+ * accumulate additively so no edge is double-counted. A rare change that would
+ * shorten an already-explored node's hop depth (a relaxation this pass can't
+ * complete without the full edge set) returns `needsFullRebuild: true`, so the
+ * caller falls back to a full BFS and the result always equals a from-scratch
+ * scan.
  */
 
 "use strict";
@@ -75,7 +85,7 @@ function mergeReachable(reachable, addr, agg, depth) {
  * @returns {Promise<Map<string, object>>}
  */
 async function collectLayer(client, frontier, ctx) {
-  const recipients = new Map();
+  const recipients = ctx.into ?? new Map();
   const onEdge = (e) => accumulateEdge(recipients, e);
   const common = {
     fromBlock: ctx.fromBlock,
@@ -176,9 +186,131 @@ async function bfsFromOa(client, ctx) {
   return { reachable, contracts };
 }
 
+/**
+ * Collect funding edges out of `nodes` over one block range into a shared
+ * recipients accumulator (a no-op for an empty node list).
+ * @param {object} client
+ * @param {Function} collect collectLayer (injectable for tests)
+ * @param {string[]} nodes
+ * @param {object} ctx carries fromBlock/toBlock/startChunk/nativeChunk/signal
+ * @param {Map<string, object>} into shared recipients accumulator
+ */
+async function collectRange(client, collect, nodes, ctx, into) {
+  if (nodes.length === 0) return;
+  await collect(client, nodes, { ...ctx, into });
+}
+
+/**
+ * Apply one recipient aggregate during a delta pass: record contracts, add the
+ * new inflow to an existing node's numerator, or register a brand-new node.
+ * Returns "cascade" when the change would shorten an ALREADY-explored node's hop
+ * depth — a relaxation this pass can't complete without the full edge set, so
+ * the caller must fall back to a full BFS.
+ * @param {string} addr
+ * @param {object} agg recipient aggregate { hex, native, via, ev }
+ * @param {number} depth this hop's depth
+ * @param {object} state { reachable, contracts, codes, maxHops, next, newSet }
+ * @returns {"ok" | "cascade"}
+ */
+function applyDeltaRecipient(addr, agg, depth, state) {
+  const { reachable, contracts, codes, maxHops, next, newSet } = state;
+  if (contracts.has(addr)) return "ok";
+  if (codes.get(addr) === true) {
+    contracts.set(addr, agg.ev[0] ? agg.ev[0].txHash : null);
+    return "ok";
+  }
+  const node = reachable.get(addr);
+  if (!node) {
+    reachable.set(addr, {
+      depth,
+      via: agg.via,
+      oaHex: agg.hex,
+      oaNative: agg.native,
+      evidence: agg.ev.slice(0, MAX_EVIDENCE),
+    });
+    newSet.add(addr);
+    if (codes.has(addr) && depth < maxHops) next.push(addr);
+    return "ok";
+  }
+  node.oaHex += agg.hex;
+  node.oaNative += agg.native;
+  for (const ev of agg.ev) {
+    if (node.evidence.length < MAX_EVIDENCE) node.evidence.push(ev);
+  }
+  if (depth < node.depth) {
+    const wasExplored = node.depth < maxHops;
+    node.depth = depth;
+    if (wasExplored) return "cascade";
+    newSet.add(addr); // a former leaf, now explored -> scan its full range
+    if (depth < maxHops) next.push(addr);
+  }
+  return "ok";
+}
+
+/**
+ * Incrementally extend a cached reachable set from `prevTip` to `toBlock`, hop
+ * by hop (see the module note for the correctness argument + fallback). The
+ * cached `reachable` / `contracts` maps are mutated in place.
+ * @param {object} client
+ * @param {object} ctx { oa, deployBlock, prevTip, toBlock, startChunk,
+ *   nativeChunk, maxHops, codeCache, reachable, contracts, log, chainKey,
+ *   signal, collect?, classify? }
+ * @returns {Promise<{ reachable: Map, contracts: Map, needsFullRebuild: boolean }>}
+ */
+async function deltaBfs(client, ctx) {
+  const collect = ctx.collect ?? collectLayer;
+  const classify = ctx.classify ?? classifyAddresses;
+  const { reachable, contracts, maxHops, deployBlock, prevTip, toBlock } = ctx;
+  const oa = ctx.oa.toLowerCase();
+  const cachedDepth = new Map([...reachable].map(([a, n]) => [a, n.depth]));
+  const newSet = new Set();
+  const newRange = { fromBlock: prevTip + 1, toBlock };
+  const fullRange = { fromBlock: deployBlock, toBlock };
+  let carry = []; // nodes discovered/promoted last hop -> scan their full range
+
+  for (let depth = 1; depth <= maxHops; depth += 1) {
+    ctx.signal?.throwIfAborted();
+    const existers = [...cachedDepth]
+      .filter(([, d]) => d === depth - 1 && d < maxHops)
+      .map(([a]) => a);
+    if (existers.length === 0 && carry.length === 0) continue;
+    const recipients = new Map();
+    await collectRange(
+      client,
+      collect,
+      existers,
+      { ...ctx, ...newRange },
+      recipients,
+    );
+    await collectRange(
+      client,
+      collect,
+      carry,
+      { ...ctx, ...fullRange },
+      recipients,
+    );
+    const fresh = [...recipients.keys()].filter(
+      (a) => a !== oa && !reachable.has(a) && !contracts.has(a),
+    );
+    const codes = await classify(client, fresh, ctx.codeCache);
+    const next = [];
+    for (const [addr, agg] of recipients) {
+      if (addr === oa) continue;
+      const state = { reachable, contracts, codes, maxHops, next, newSet };
+      if (applyDeltaRecipient(addr, agg, depth, state) === "cascade") {
+        return { reachable, contracts, needsFullRebuild: true };
+      }
+    }
+    carry = next;
+  }
+  return { reachable, contracts, needsFullRebuild: false };
+}
+
 module.exports = {
   bfsFromOa,
+  deltaBfs,
   accumulateEdge,
   mergeReachable,
   processRecipient,
+  applyDeltaRecipient,
 };

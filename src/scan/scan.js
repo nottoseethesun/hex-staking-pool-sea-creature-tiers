@@ -4,8 +4,11 @@
  * the three stake events, chunked from the deploy block to a pinned tip, decoded
  * to minimal rows and appended to data/<chain>/stakes.ndjson with a resume
  * checkpoint. Re-running performs an incremental top-up (only new blocks). The
- * active-shares map is rebuilt on demand by replaying the ledger — never cached
- * separately (minimal footprint).
+ * pinned tip follows the sticky-tip rule (see checkpoint.js): while a sync cycle
+ * is in progress it stays fixed across restarts, so the later stages' resumable
+ * checkpoints keep matching; a fresh tip is pinned only when a new cycle starts.
+ * The active-shares map is rebuilt on demand by replaying the ledger — never
+ * cached separately (minimal footprint).
  */
 
 "use strict";
@@ -20,6 +23,7 @@ const {
   truncatePartialLine,
 } = require("../cache/store");
 const { logChunkFor } = require("../config");
+const { makeProgressLogger } = require("../log");
 const cp = require("./checkpoint");
 const { createFlushGate } = require("../cache/flush-gate");
 const tuning = require("../../config/tuning.json");
@@ -103,6 +107,27 @@ function createLedgerWriter(args) {
 }
 
 /**
+ * Decide the tip this scan targets, applying the sticky-tip rule. While a sync
+ * cycle is in progress its pinned tip is held fixed across restarts, so the
+ * resumable resolve/OA checkpoints stay valid and resume instead of restarting
+ * against a freshly-advanced head; otherwise a fresh tip is pinned from the live
+ * head (minus the reorg-safety lag) and a new cycle is opened.
+ * @param {object} client
+ * @param {string} chainKey
+ * @param {object} config
+ * @param {boolean} force
+ * @returns {Promise<number>}
+ */
+async function resolveScanTip(client, chainKey, config, force) {
+  const sticky = cp.stickyTip(chainKey, force);
+  if (sticky !== null) return sticky;
+  const head = await client.getBlockNumber();
+  const tip = head - config.tipLagBlocks;
+  cp.saveCycle(chainKey, { tip, complete: false });
+  return tip;
+}
+
+/**
  * Scan (or incrementally top up) a chain's stake ledger to a pinned tip.
  * @param {object} ctx { client, chainKey, config, log, force?, signal? }
  * @returns {Promise<object>} { chainKey, tip, deployBlock, rows, scanned }
@@ -110,8 +135,7 @@ function createLedgerWriter(args) {
 async function scanChain(ctx) {
   const { client, chainKey, config, log, force = false } = ctx;
   if (force) cp.resetChain(chainKey);
-  const head = await client.getBlockNumber();
-  const tip = head - config.tipLagBlocks;
+  const tip = await resolveScanTip(client, chainKey, config, force);
   const deployBlock = await resolveDeployBlock(client, chainKey, tip, force);
   const checkpoint = cp.loadCheckpoint(chainKey);
   if (checkpoint && !cp.isCompatible(checkpoint)) {
@@ -140,6 +164,9 @@ async function scanChain(ctx) {
     everyItems: tuning.flushEveryChunks,
     everyMs: tuning.flushEveryMs,
   });
+  const progress = makeProgressLogger(`[scan ${chainKey}]`, "block scan", {
+    log,
+  });
   try {
     await getLogsChunked(client, {
       address: HEX_CONTRACT,
@@ -150,18 +177,10 @@ async function scanChain(ctx) {
       signal: ctx.signal,
       onLogs: (logs, range) => {
         writer.add(logs.map(decodeStakeLog).filter(Boolean), range.to);
-        log.info(
-          "[scan %s] %d/%d blocks, %d rows",
-          chainKey,
-          range.to,
-          tip,
-          writer.rows(),
-        );
-        if (ctx.onProgress) {
-          const span = tip - startBlock;
-          const frac = span > 0 ? (range.to - startBlock) / span : 1;
-          ctx.onProgress(Math.min(1, Math.max(0, frac)));
-        }
+        const span = tip - startBlock;
+        const frac = span > 0 ? (range.to - startBlock) / span : 1;
+        progress(frac, `block ${range.to}/${tip}, ${writer.rows()} rows`);
+        if (ctx.onProgress) ctx.onProgress(Math.min(1, Math.max(0, frac)));
       },
     });
   } finally {
@@ -213,6 +232,7 @@ module.exports = {
   scanChain,
   buildActiveShares,
   resolveDeployBlock,
+  resolveScanTip,
   applyRow,
   createLedgerWriter,
 };

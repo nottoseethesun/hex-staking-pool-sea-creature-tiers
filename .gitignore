@@ -15,6 +15,13 @@ node_modules/
 # config/secrets.example.json and fill in your own key.
 config/secrets.json
 
+# Encrypted secrets vault (password-locked; holds e.g. the Moralis RPC URL).
+# The plaintext never lives here — only an AES-256-GCM envelope. Keep private.
+config/secrets.vault.json
+
+# Raw key files dropped in for import (e.g. moralis.key) — never commit these.
+*.key
+
 # On-chain scan cache (immutable, regenerable) + derived report outputs.
 # These are rebuilt from the chain by `hexleague scan` / `oa` / `report`.
 data/

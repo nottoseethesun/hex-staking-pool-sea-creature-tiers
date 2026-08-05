@@ -84,8 +84,13 @@ function stageWeights(work) {
  * @returns {Promise<{scan:number, resolve:number, oa:number}>}
  */
 async function estimateChainWork(client, chainKey, config, force) {
-  const head = await client.getBlockNumber();
-  const tip = head - config.tipLagBlocks;
+  // Honor the sticky tip: mid-cycle the scan targets the pinned tip, not a fresh
+  // head, so a resumed run estimates ~0 work for the already-cached stages.
+  const sticky = cp.stickyTip(chainKey, force);
+  const tip =
+    sticky !== null
+      ? sticky
+      : (await client.getBlockNumber()) - config.tipLagBlocks;
   const checkpoint = force ? null : cp.loadCheckpoint(chainKey);
   const deploy =
     cp.loadDeployBlock(chainKey) ?? CHAIN_CFG[chainKey].approxDeployBlock;

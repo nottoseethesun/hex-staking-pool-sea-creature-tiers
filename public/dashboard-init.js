@@ -9,6 +9,8 @@ import { renderView } from "./dashboard-render.js";
 import { initFinder } from "./dashboard-whereami.js";
 import { initSync, noDataText } from "./dashboard-update.js";
 import { initDisclaimer, initHelp } from "./dashboard-help.js";
+import { initScanDetails } from "./dashboard-scan-details.js";
+import { initSecrets, checkPreflight } from "./dashboard-secrets.js";
 
 const DATA_PANELS = ["headlinePanel", "tierPanel", "topPanel"];
 
@@ -80,5 +82,8 @@ initTabs();
 initFinder();
 initSync();
 initHelp();
+initScanDetails();
+initSecrets();
 initDisclaimer();
 void load();
+void checkPreflight();

@@ -18,6 +18,7 @@ const { findDeployBlock } = require("../chain/deploy-block");
 const { buildActiveShares } = require("../scan/scan");
 const { buildHsiOwnership } = require("./ownership");
 const { scanWrapperBalances } = require("./wrapped");
+const { loadResolveState, saveResolveState } = require("./resolve-state");
 const { resolutionPath } = require("./resolution");
 const { logChunkFor } = require("../config");
 const fs = require("fs");
@@ -85,15 +86,18 @@ function activeHsiOwners(owners, rawShares) {
 }
 
 /**
- * Scan one wrapper token's balances into a serializable cache entry.
+ * Scan one wrapper token's balances into a serializable cache entry, plus the
+ * raw balance snapshot to persist for the next incremental cycle. `ctx.fromBlock`
+ * / `ctx.prior` (when present) extend a prior cycle over the new range only.
  * @param {object} client
  * @param {{ token: string, label: string }} w
- * @param {object} ctx { toBlock, startChunk, signal }
- * @returns {Promise<object>} { address, label, supply, balances }
+ * @param {object} ctx { toBlock, startChunk, signal, load, save, fromBlock?, prior? }
+ * @returns {Promise<{ entry: object, snapshot: object }>}
  */
 async function scanWrapper(client, w, ctx) {
-  const fromBlock = await findDeployBlock(client, w.token, ctx.toBlock);
-  const { balances, supply } = await scanWrapperBalances(client, {
+  const fromBlock =
+    ctx.fromBlock ?? (await findDeployBlock(client, w.token, ctx.toBlock));
+  const { balances, supply, snapshot } = await scanWrapperBalances(client, {
     token: w.token,
     fromBlock,
     toBlock: ctx.toBlock,
@@ -101,14 +105,18 @@ async function scanWrapper(client, w, ctx) {
     signal: ctx.signal,
     load: ctx.load,
     save: ctx.save,
+    prior: ctx.prior,
   });
   const obj = {};
   for (const [addr, bal] of balances) obj[addr] = bal.toString();
   return {
-    address: w.token.toLowerCase(),
-    label: w.label,
-    supply: supply.toString(),
-    balances: obj,
+    entry: {
+      address: w.token.toLowerCase(),
+      label: w.label,
+      supply: supply.toString(),
+      balances: obj,
+    },
+    snapshot,
   };
 }
 
@@ -129,7 +137,40 @@ function isFresh(existing, tip, force) {
 }
 
 /**
- * Build (or reuse) a chain's resolution cache.
+ * Replay HSIM ownership to this tip (extending a prior snapshot when incremental)
+ * and reduce it to the active HSI -> owner map, returning the raw snapshot to
+ * persist for the next cycle.
+ * @param {object} client
+ * @param {object} ctx { chainKey, tip, startChunk, signal, force, prior,
+ *   fromBlock, onProgress }
+ * @returns {Promise<{ hsiOwners: object, snapshot: object|null }>}
+ */
+async function resolveOwnership(client, ctx) {
+  const hsim = HSIM_BY_CHAIN[ctx.chainKey];
+  if (!hsim) return { hsiOwners: {}, snapshot: null };
+  const fromBlock =
+    ctx.fromBlock ?? (await findDeployBlock(client, hsim, ctx.tip));
+  const io = subScanIO(ctx.chainKey, ctx.tip, "ownership", ctx.force);
+  const { owners, snapshot } = await buildHsiOwnership(client, {
+    hsim,
+    fromBlock,
+    toBlock: ctx.tip,
+    startChunk: ctx.startChunk,
+    signal: ctx.signal,
+    prior: ctx.prior,
+    load: io.load,
+    save: io.save,
+    onProgress: ctx.onProgress,
+  });
+  const rawShares = await buildActiveShares(ctx.chainKey);
+  return { hsiOwners: activeHsiOwners(owners, rawShares), snapshot };
+}
+
+/**
+ * Build (or reuse) a chain's resolution cache. When a resolve state from an
+ * earlier tip exists, the HSIM replay and each wrapper scan extend it over only
+ * the new block range; a first build, a forced --rebuild, or a newly-added
+ * wrapper replays from the deploy block.
  * @param {object} ctx { client, chainKey, config, log, force?, signal?,
  *   onProgress? }
  * @returns {Promise<object>} the resolution.json contents
@@ -149,42 +190,40 @@ async function buildResolution(ctx) {
     return existing;
   }
   const startChunk = logChunkFor(config, chainKey);
-  const hsim = HSIM_BY_CHAIN[chainKey];
-  let owners = new Map();
-  if (hsim) {
-    const fromBlock = await findDeployBlock(client, hsim, tip);
-    const io = subScanIO(chainKey, tip, "ownership", force);
-    owners = await buildHsiOwnership(client, {
-      hsim,
-      fromBlock,
+  const prev = force ? null : loadResolveState(chainKey);
+  const incremental = Boolean(prev && prev.tip < tip);
+  const state = { tip, ownership: null, wrappers: {} };
+
+  const ownPrior = incremental ? prev.ownership : null;
+  const { hsiOwners, snapshot } = await resolveOwnership(client, {
+    chainKey,
+    tip,
+    startChunk,
+    signal,
+    force,
+    fromBlock: ownPrior ? prev.tip + 1 : undefined,
+    prior: ownPrior,
+    onProgress: (f) => ctx.onProgress && ctx.onProgress(f * 0.5),
+  });
+  state.ownership = snapshot;
+  if (ctx.onProgress) ctx.onProgress(0.5);
+
+  const wrappers = [];
+  for (const w of WRAPPERS_BY_CHAIN[chainKey] ?? []) {
+    const key = w.token.toLowerCase();
+    const wPrior = incremental ? prev.wrappers[key] : null;
+    const io = subScanIO(chainKey, tip, `wrapper:${key}`, force);
+    const { entry, snapshot: snap } = await scanWrapper(client, w, {
       toBlock: tip,
       startChunk,
       signal,
       load: io.load,
       save: io.save,
-      onProgress: (f) => ctx.onProgress && ctx.onProgress(f * 0.5),
+      fromBlock: wPrior ? prev.tip + 1 : undefined,
+      prior: wPrior,
     });
-  }
-  const rawShares = await buildActiveShares(chainKey);
-  const hsiOwners = activeHsiOwners(owners, rawShares);
-  if (ctx.onProgress) ctx.onProgress(0.5);
-  const wrappers = [];
-  for (const w of WRAPPERS_BY_CHAIN[chainKey] ?? []) {
-    const io = subScanIO(
-      chainKey,
-      tip,
-      `wrapper:${w.token.toLowerCase()}`,
-      force,
-    );
-    wrappers.push(
-      await scanWrapper(client, w, {
-        toBlock: tip,
-        startChunk,
-        signal,
-        load: io.load,
-        save: io.save,
-      }),
-    );
+    wrappers.push(entry);
+    state.wrappers[key] = snap;
   }
   if (ctx.onProgress) ctx.onProgress(1);
   const resolution = {
@@ -194,14 +233,16 @@ async function buildResolution(ctx) {
     hsiOwners,
     wrappers,
   };
+  saveResolveState(chainKey, state);
   writeJson(resolutionPath(chainKey), resolution);
   clearProgress(chainKey);
   log.info(
-    "[resolve %s] %d active HSI owners, %d wrapper(s) at tip %d",
+    "[resolve %s] %d active HSI owners, %d wrapper(s) at tip %d%s",
     chainKey,
     Object.keys(hsiOwners).length,
     wrappers.length,
     tip,
+    incremental ? " (incremental)" : "",
   );
   return resolution;
 }

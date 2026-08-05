@@ -17,7 +17,8 @@ const path = require("path");
 const fs = require("fs");
 const { ORIGIN_ADDRESS } = require("../chain/constants");
 const { checksum } = require("../chain/address");
-const { bfsFromOa } = require("./graph");
+const { bfsFromOa, deltaBfs } = require("./graph");
+const { loadOaState, saveOaState } = require("./oa-state");
 const { classifyFunding } = require("./attribution");
 const {
   collectHexInbound,
@@ -25,10 +26,12 @@ const {
   chunkArray,
 } = require("./funding-graph");
 const { logChunkFor } = require("../config");
+const { makeProgressLogger } = require("../log");
 const cp = require("../scan/checkpoint");
 const { readJson, writeJson, chainDir } = require("../cache/store");
 const tuning = require("../../config/tuning.json");
 const { createFlushGate } = require("../cache/flush-gate");
+const { makeClientPool } = require("../rpc/make-client");
 
 /** trace_filter block window for OA native scans (traces are heavy). */
 const NATIVE_CHUNK = tuning.nativeTraceChunk;
@@ -62,13 +65,14 @@ function saveCodeCache(chainKey, cache) {
 
 /**
  * Restore prior inbound totals when the checkpoint is for this exact tip and
- * candidate set, returning the batch index to resume from (0 = start fresh).
+ * candidate set, returning the batch index to resume from (0 = start fresh) and
+ * the accumulated inbound-sweep wall-clock so far (0 = start fresh).
  * @param {object|null} prev checkpoint contents
  * @param {number} tip
  * @param {string[]} candidates
  * @param {any[][]} batches
  * @param {Map<string, object>} totals mutated in place with the restored totals
- * @returns {number}
+ * @returns {{ startBatch: number, elapsedMs: number }}
  */
 function resumeInbound(prev, tip, candidates, batches, totals) {
   if (
@@ -77,7 +81,7 @@ function resumeInbound(prev, tip, candidates, batches, totals) {
     prev.candidateCount !== candidates.length ||
     prev.batchCount !== batches.length
   ) {
-    return 0;
+    return { startBatch: 0, elapsedMs: 0 };
   }
   for (const [a, t] of Object.entries(prev.totals)) {
     const cur = totals.get(a);
@@ -86,7 +90,79 @@ function resumeInbound(prev, tip, candidates, batches, totals) {
       cur.totalNative = BigInt(t.native);
     }
   }
-  return prev.doneBatches ?? 0;
+  return { startBatch: prev.doneBatches ?? 0, elapsedMs: prev.elapsedMs ?? 0 };
+}
+
+/**
+ * Seed each candidate's running total from a prior cycle's cached inbound (when
+ * present), so an incremental sweep extends it; unseen candidates start at zero.
+ * @param {string[]} candidates
+ * @param {object} [prior] { tip, totals: { addr: { hex, native } } }
+ * @returns {Map<string, { totalHex: bigint, totalNative: bigint }>}
+ */
+function seedTotals(candidates, prior) {
+  const base = prior && prior.totals ? prior.totals : {};
+  const totals = new Map();
+  for (const a of candidates) {
+    const p = base[a];
+    totals.set(a, {
+      totalHex: p ? BigInt(p.hex) : 0n,
+      totalNative: p ? BigInt(p.native) : 0n,
+    });
+  }
+  return totals;
+}
+
+/**
+ * Plan the inbound batches. Without a prior, every candidate is scanned over the
+ * full range (`ctx.fromBlock`). With a prior, candidates carried forward are
+ * rescanned only over (prior.tip, tip]; genuinely new candidates get the full
+ * range. Each batch is tagged with the fromBlock it should be scanned over.
+ * @param {string[]} candidates
+ * @param {object} ctx { fromBlock, prior?, batchSize? }
+ * @returns {{ addresses: string[], fromBlock: number }[]}
+ */
+function planInbound(candidates, ctx) {
+  const size = ctx.batchSize ?? INBOUND_BATCH;
+  const tag = (addresses, fromBlock) => ({ addresses, fromBlock });
+  const carried = ctx.prior && ctx.prior.totals;
+  if (!carried) {
+    return chunkArray(candidates, size).map((b) => tag(b, ctx.fromBlock));
+  }
+  const known = candidates.filter((a) => carried[a]);
+  const fresh = candidates.filter((a) => !carried[a]);
+  return [
+    ...chunkArray(known, size).map((b) => tag(b, ctx.prior.tip + 1)),
+    ...chunkArray(fresh, size).map((b) => tag(b, ctx.fromBlock)),
+  ];
+}
+
+/**
+ * Scan one candidate batch's total inbound (HEX via getLogs, native via
+ * trace_filter) over its range, returning per-address { hex, native } deltas.
+ * @param {object} client the endpoint to use (a pool worker's shard)
+ * @param {{ addresses: string[], fromBlock: number }} entry
+ * @param {object} ctx { tip, startChunk, signal, collectHex, collectNative }
+ * @returns {Promise<Map<string, { hex: bigint, native: bigint }>>}
+ */
+async function scanInboundBatch(client, entry, ctx) {
+  const acc = new Map(entry.addresses.map((a) => [a, { hex: 0n, native: 0n }]));
+  const onEdge = (e) => {
+    const b = acc.get(e.to);
+    if (!b) return;
+    if (e.asset === "hex") b.hex += e.value;
+    else b.native += e.value;
+  };
+  const base = {
+    addresses: entry.addresses,
+    fromBlock: entry.fromBlock,
+    toBlock: ctx.tip,
+    onEdge,
+    signal: ctx.signal,
+  };
+  await ctx.collectHex(client, { ...base, startChunk: ctx.startChunk });
+  await ctx.collectNative(client, { ...base, startChunk: NATIVE_CHUNK });
+  return acc;
 }
 
 /**
@@ -101,26 +177,33 @@ function resumeInbound(prev, tip, candidates, batches, totals) {
  * @param {object} client
  * @param {string[]} candidates
  * @param {object} ctx { fromBlock, toBlock, startChunk, onProgress?, load?, save?,
- *   collectHex?, collectNative?, batchSize?, signal? }
+ *   collectHex?, collectNative?, batchSize?, signal?, now?, prior?, clients? } —
+ *   `prior` ({ tip, totals }) makes it incremental (carried candidates extend
+ *   from prior.tip, new ones scan the full range); `clients` (a pool) shards the
+ *   batches across endpoints, merging only the contiguous done-prefix into the
+ *   checkpoint so a resumed run never double-counts.
  * @returns {Promise<Map<string, { totalHex: bigint, totalNative: bigint }>>}
  */
 async function computeInbound(client, candidates, ctx) {
   const collectHex = ctx.collectHex ?? collectHexInbound;
   const collectNative = ctx.collectNative ?? collectNativeInbound;
   const tip = ctx.toBlock;
-  const totals = new Map();
-  for (const a of candidates) totals.set(a, { totalHex: 0n, totalNative: 0n });
-  const batches = chunkArray(candidates, ctx.batchSize ?? INBOUND_BATCH);
-  const startBatch = resumeInbound(
+  const totals = seedTotals(candidates, ctx.prior);
+  const plan = planInbound(candidates, ctx);
+  const { startBatch, elapsedMs: baseElapsed } = resumeInbound(
     ctx.load ? ctx.load() : null,
     tip,
     candidates,
-    batches,
+    plan,
     totals,
   );
+  // Accumulate the inbound sweep's wall-clock across resumes so the report can
+  // surface a measured re-scan cost. `ctx.now` is injectable for tests.
+  const now = ctx.now ?? Date.now;
+  const startedAt = now();
   const gate = createFlushGate({
-    everyItems: tuning.flushEveryChunks,
-    everyMs: tuning.flushEveryMs,
+    everyItems: ctx.everyItems ?? tuning.flushEveryChunks,
+    everyMs: ctx.everyMs ?? tuning.flushEveryMs,
   });
   const save = (done) => {
     if (!ctx.save) return;
@@ -131,44 +214,62 @@ async function computeInbound(client, candidates, ctx) {
     ctx.save({
       tip,
       candidateCount: candidates.length,
-      batchCount: batches.length,
+      batchCount: plan.length,
       doneBatches: done,
+      elapsedMs: baseElapsed + (now() - startedAt),
       totals: obj,
     });
   };
-  let done = startBatch;
-  try {
-    for (let i = startBatch; i < batches.length; i += 1) {
-      ctx.signal?.throwIfAborted();
-      const acc = new Map(batches[i].map((a) => [a, { hex: 0n, native: 0n }]));
-      const onEdge = (e) => {
-        const b = acc.get(e.to);
-        if (!b) return;
-        if (e.asset === "hex") b.hex += e.value;
-        else b.native += e.value;
-      };
-      const base = {
-        addresses: batches[i],
-        fromBlock: ctx.fromBlock,
-        toBlock: tip,
-        onEdge,
-        signal: ctx.signal,
-      };
-      await collectHex(client, { ...base, startChunk: ctx.startChunk });
-      await collectNative(client, { ...base, startChunk: NATIVE_CHUNK });
+  const clients = ctx.clients ?? [client];
+  const batchCtx = {
+    tip,
+    startChunk: ctx.startChunk,
+    signal: ctx.signal,
+    collectHex,
+    collectNative,
+  };
+  // Per-10% progress line for the OA wallet sweep (the long pole of a re-scan),
+  // so a headless operator sees it advance. A no-op when no logger is injected.
+  const progress = ctx.log
+    ? makeProgressLogger(`[oa ${ctx.chainKey}]`, "OA wallet scan", {
+        log: ctx.log,
+      })
+    : () => {};
+  const pending = new Map();
+  let nextIdx = startBatch;
+  let cursor = startBatch; // count of batches merged into `totals` (contiguous)
+  const mergeContiguous = () => {
+    while (pending.has(cursor)) {
+      const acc = pending.get(cursor);
+      pending.delete(cursor);
       for (const [a, b] of acc) {
         const t = totals.get(a);
         t.totalHex += b.hex;
         t.totalNative += b.native;
       }
-      done = i + 1;
+      cursor += 1;
       gate.add(1);
-      if (gate.due()) save(done);
-      if (ctx.onProgress) ctx.onProgress(done / batches.length);
+      if (gate.due()) save(cursor);
+      if (ctx.onProgress) ctx.onProgress(cursor / plan.length);
+      progress(cursor / plan.length, `${cursor}/${plan.length} batches`);
     }
+  };
+  const worker = async (workerClient) => {
+    while (nextIdx < plan.length) {
+      ctx.signal?.throwIfAborted();
+      const i = nextIdx;
+      nextIdx += 1;
+      pending.set(i, await scanInboundBatch(workerClient, plan[i], batchCtx));
+      mergeContiguous();
+    }
+  };
+  try {
+    await Promise.all(clients.map((c) => worker(c)));
   } finally {
-    // Persist completed batches on normal completion OR a clean abort.
-    save(done);
+    // Merge whatever finished, then persist the contiguous prefix (survives a
+    // clean abort; the checkpoint never counts an out-of-order batch).
+    mergeContiguous();
+    save(cursor);
   }
   return totals;
 }
@@ -211,6 +312,59 @@ function buildMembers(candidates, reachable, totals, threshold) {
 }
 
 /**
+ * Resolve the OA reachable set for this tip. When a cached state exists for an
+ * earlier tip (same deploy block), extend it incrementally via `deltaBfs` —
+ * falling back to a full `bfsFromOa` if that pass reports it can't stay exact.
+ * Otherwise, a full BFS from scratch. Returns the cluster plus the prior inbound
+ * cache to extend (null on a full build).
+ * @param {object} client
+ * @param {object} scanCtx
+ * @param {object|null} prevState loadOaState() result
+ * @param {(f: number) => void} onProgress
+ * @param {object} [deps] { deltaBfs, bfsFromOa } — injectable for tests
+ * @returns {Promise<{ reachable: Map, contracts: Map, prior: object|null }>}
+ */
+async function resolveCluster(
+  client,
+  scanCtx,
+  prevState,
+  onProgress,
+  deps = { deltaBfs, bfsFromOa },
+) {
+  const resumable =
+    prevState &&
+    prevState.tip < scanCtx.toBlock &&
+    prevState.deployBlock === scanCtx.fromBlock;
+  if (resumable) {
+    const delta = await deps.deltaBfs(client, {
+      ...scanCtx,
+      prevTip: prevState.tip,
+      reachable: prevState.reachable,
+      contracts: prevState.contracts,
+    });
+    if (!delta.needsFullRebuild) {
+      scanCtx.log.info(
+        "[oa %s] extended cluster incrementally from tip %d",
+        scanCtx.chainKey,
+        prevState.tip,
+      );
+      onProgress(1);
+      return {
+        reachable: delta.reachable,
+        contracts: delta.contracts,
+        prior: { tip: prevState.tip, totals: prevState.inbound },
+      };
+    }
+    scanCtx.log.info(
+      "[oa %s] cluster shifted; falling back to a full rebuild",
+      scanCtx.chainKey,
+    );
+  }
+  const full = await deps.bfsFromOa(client, { ...scanCtx, onProgress });
+  return { reachable: full.reachable, contracts: full.contracts, prior: null };
+}
+
+/**
  * Build (or reuse) the OA cluster for a chain.
  * @param {object} ctx { client, chainKey, config, log, activeStakers, force?,
  *   onProgress? } — onProgress(0..1) reports inbound-batch progress.
@@ -242,11 +396,16 @@ async function buildOa(ctx) {
     chainKey,
     signal: ctx.signal,
   };
-  // OA progress: the BFS drives the first half, inbound the second half.
-  const { reachable, contracts } = await bfsFromOa(client, {
-    ...scanCtx,
-    onProgress: (f) => ctx.onProgress && ctx.onProgress(f * 0.5),
-  });
+  // OA progress: the BFS drives the first half, inbound the second half. A
+  // cached state (from an earlier tip) lets the BFS + inbound extend over only
+  // the new block range instead of rebuilding from the deploy block.
+  const prevState = force ? null : loadOaState(chainKey);
+  const { reachable, contracts, prior } = await resolveCluster(
+    client,
+    scanCtx,
+    prevState,
+    (f) => ctx.onProgress && ctx.onProgress(f * 0.5),
+  );
   saveCodeCache(chainKey, codeCache);
   const oaLower = ORIGIN_ADDRESS.toLowerCase();
   const candidates = [...reachable.keys()].filter(
@@ -254,6 +413,8 @@ async function buildOa(ctx) {
   );
   const totals = await computeInbound(client, candidates, {
     ...scanCtx,
+    prior,
+    clients: makeClientPool(config, chainKey),
     load: () => readJson(oaInboundPath(chainKey), null),
     save: (obj) => writeJson(oaInboundPath(chainKey), obj),
     onProgress: (f) => ctx.onProgress && ctx.onProgress(0.5 + f * 0.5),
@@ -264,10 +425,14 @@ async function buildOa(ctx) {
     totals,
     config.oaFundingThreshold,
   );
+  // The inbound sweep just completed; its final checkpoint carries the measured
+  // wall-clock, which we fold into oa.json as the re-scan cost estimate.
+  const inboundCp = readJson(oaInboundPath(chainKey), null);
   const oaJson = {
     oa: checksum(ORIGIN_ADDRESS),
     chain: chainKey,
     tip,
+    deployBlock,
     params: {
       maxHops: config.oaMaxHops,
       fundingThreshold: config.oaFundingThreshold,
@@ -275,14 +440,28 @@ async function buildOa(ctx) {
     reachableCount: reachable.size - 1,
     candidateStakerCount: candidates.length,
     memberCount: members.length,
+    sweep: {
+      inboundMs: inboundCp ? (inboundCp.elapsedMs ?? null) : null,
+      candidates: candidates.length,
+      finishedUtc: new Date().toISOString(),
+    },
     members,
     contractsSeen: [...contracts.entries()].map(([addr, firstTx]) => ({
       addr: checksum(addr),
       firstTx,
     })),
   };
+  // Persist the full cluster + inbound totals so the next cycle can extend them.
+  saveOaState(chainKey, {
+    tip,
+    deployBlock,
+    reachable,
+    contracts,
+    inbound: totals,
+  });
   writeJson(oaPath(chainKey), oaJson);
-  // The inbound sweep is complete and captured in oa.json; drop its checkpoint.
+  // oa.json now captures the sweep; drop its intermediate within-run checkpoint
+  // (oa-state.json persists across cycles for the next incremental Re-Scan).
   fs.rmSync(oaInboundPath(chainKey), { force: true });
   log.info(
     "[oa %s] %d OA-staker members of %d candidates; %d contracts flagged",
@@ -311,6 +490,7 @@ module.exports = {
   buildOa,
   buildMembers,
   computeInbound,
+  resolveCluster,
   memberAddressSet,
   oaPath,
 };

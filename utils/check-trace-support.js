@@ -166,6 +166,25 @@ async function probe(url, opts) {
 }
 
 /**
+ * Probe every URL, returning the verdicts and whether all passed. Free of
+ * process side effects (no printing / exit) so it is unit-testable and reusable
+ * (the startup trace preflight calls `probe` directly).
+ * @param {string[]} urls
+ * @param {{archiveBlock:number, timeoutMs:number}} opts
+ * @returns {Promise<{ results: object[], allOk: boolean }>}
+ */
+async function run(urls, opts) {
+  const results = [];
+  let allOk = true;
+  for (const url of urls) {
+    const v = await probe(url, opts);
+    if (!v.ok) allOk = false;
+    results.push(v);
+  }
+  return { results, allOk };
+}
+
+/**
  * CLI entry: probe each URL, print a verdict per line, exit non-zero if any URL
  * is not a full-archive trace_filter provider.
  * @returns {Promise<void>}
@@ -191,10 +210,8 @@ async function main() {
       DEFAULT_ARCHIVE_BLOCK,
     timeoutMs: Number.parseInt(values.timeout ?? "", 10) || DEFAULT_TIMEOUT_MS,
   };
-  let allOk = true;
-  for (const url of positionals) {
-    const v = await probe(url, opts);
-    if (!v.ok) allOk = false;
+  const { results, allOk } = await run(positionals, opts);
+  for (const v of results) {
     process.stdout.write(
       `${v.ok ? "✓" : "✗"} ${v.url}\n` +
         `    trace_filter: ${v.trace}  |  archive: ${v.archive}\n`,
@@ -203,7 +220,21 @@ async function main() {
   process.exit(allOk ? 0 : 1);
 }
 
-main().catch((e) => {
-  process.stderr.write(`fatal: ${e.message}\n`);
-  process.exit(2);
-});
+module.exports = {
+  hexBlock,
+  isMethodMissing,
+  isNotArchive,
+  checkMethod,
+  checkArchive,
+  probe,
+  run,
+  DEFAULT_ARCHIVE_BLOCK,
+  DEFAULT_TIMEOUT_MS,
+};
+
+if (require.main === module) {
+  main().catch((e) => {
+    process.stderr.write(`fatal: ${e.message}\n`);
+    process.exit(2);
+  });
+}
