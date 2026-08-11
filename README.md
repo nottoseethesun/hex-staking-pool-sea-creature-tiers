@@ -3,6 +3,11 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/nottoseethesun/hex-staking-pool-sea-creature-tiers/ci.yml?branch=main&label=lint%20%2B%20tests)](../../actions/workflows/ci.yml)
 [![Security Audit](https://img.shields.io/github/actions/workflow/status/nottoseethesun/hex-staking-pool-sea-creature-tiers/security-audit.yml?branch=main&label=security)](../../actions/workflows/security-audit.yml)
 
+> [!IMPORTANT]
+> **This app does not currently work: It needs to be rebuilt to work with a
+> local `erigon` node ( <https://docs.erigon.tech/> ,
+> <https://x.com/ErigonEth> ).**
+
 ## Overview
 
 **HEX Sea-Creature League** is a self-hosted, read-only tool that reads the HEX
