@@ -10,8 +10,9 @@ Run in CI (`security-audit.yml`) and inside `npm run check`:
 
 - **Dependency CVEs** — `npm run audit:deps` (`scripts/audit-deps.js`): runs
   `npm audit --json` and fails on every high or critical advisory except the
-  entries in its `ALLOWED` list. It fails closed when `npm audit` cannot
-  produce a report.
+  entries in its `ALLOWED` list, and on any `package.json` override that no
+  longer keeps one out. It fails closed when `npm audit` cannot produce a
+  report.
 - **Security lint** — `npm run audit:security` (eslint-plugin-security +
   eslint-plugin-no-secrets + the custom `hexleague` rules).
 - **Secret scan** — `npm run audit:secrets` (secretlint, recommend preset).
@@ -32,3 +33,9 @@ Run in CI (`security-audit.yml`) and inside `npm run check`:
   the advisory's GHSA id plus the reason it is tolerated. An entry goes there
   only when no patched release exists. The gate fails once an entry no longer
   matches a high or critical finding, so it comes off when the fix lands.
+- A `package.json` override that keeps a vulnerable version out of the tree
+  needs an `OVERRIDES` entry in `scripts/audit-deps.js` saying why. The gate
+  re-resolves the lockfile without each override (in a temp copy, no install)
+  and audits the result; it fails when dropping an override brings back no high
+  or critical advisory, so the override comes off once upstream moves on. An
+  override with no entry, or an entry with no override, fails the gate too.

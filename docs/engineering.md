@@ -79,7 +79,7 @@ Security audits:
 
 | Command | Purpose |
 | --- | --- |
-| `npm run audit:deps` | `scripts/audit-deps.js`: `npm audit`, failing on high/critical except the advisories on its `ALLOWED` list. |
+| `npm run audit:deps` | `scripts/audit-deps.js`: `npm audit`, failing on high/critical except the advisories on its `ALLOWED` list, and on any `package.json` override that no longer keeps one out. |
 | `npm run audit:security` | Security-focused ESLint (`eslint-security.config.js`). |
 | `npm run audit:secrets` | secretlint scan for committed secrets. |
 | `npm run knip` | Report unused files, dependencies, and exports. |
