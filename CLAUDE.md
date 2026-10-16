@@ -65,7 +65,7 @@ src/
   validate/reconcile.js  Sigma active shares == globalInfo totals
   cli/                   verify, scan-cmd, resolve-cmd, oa-cmd, report-cmd, whereami-cmd, context
 public/                  index.html, style.css, dashboard-*.js (ESM)
-scripts/                 check.js (umbrella gate), build-info.js
+scripts/                 check.js (umbrella gate), audit-deps.js (CVE gate), build-info.js
 eslint-rules/            no-interpolated-innerhtml, no-secret-logging, no-number-from-bigint
 data/<chain>/            gitignored, immutable scan cache (no TTL)
 out/                     gitignored derived report artefacts
