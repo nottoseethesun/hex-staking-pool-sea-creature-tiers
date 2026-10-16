@@ -179,8 +179,8 @@ function lintSteps() {
     {
       id: "audit-deps",
       label: "Dependency audit",
-      cmd: "npm",
-      args: ["audit", "--audit-level=high"],
+      cmd: "node",
+      args: ["scripts/audit-deps.js"],
     },
     {
       id: "audit-security",

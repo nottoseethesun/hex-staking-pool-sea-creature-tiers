@@ -34,7 +34,7 @@
     "check": "node scripts/check.js",
     "format": "prettier --write \"bin/**/*.js\" \"src/**/*.js\" \"scripts/**/*.js\" \"test/**/*.js\" \"utils/**/*.js\" \"public/dashboard-*.js\" server.js \"eslint-rules/**/*.js\"",
     "format:check": "prettier --check \"bin/**/*.js\" \"src/**/*.js\" \"scripts/**/*.js\" \"test/**/*.js\" \"utils/**/*.js\" \"public/dashboard-*.js\" server.js \"eslint-rules/**/*.js\"",
-    "audit:deps": "npm audit --audit-level=high",
+    "audit:deps": "node scripts/audit-deps.js",
     "audit:security": "eslint -c eslint-security.config.js bin/ src/ scripts/ utils/ server.js --max-warnings 0",
     "audit:secrets": "secretlint \"src/**/*.js\" \"bin/**/*.js\" \"scripts/**/*.js\" \"server.js\" \".env*\" \"*.json\"",
     "knip": "knip",
