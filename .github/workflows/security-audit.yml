@@ -1,10 +1,16 @@
 name: Security Audit
 
+# Paused while the project is inactive (it needs a PulseChain archive node):
+# the push and pull-request triggers are commented out, so these jobs run only
+# when started by hand from the Actions tab. `npm run check` in ci.yml still
+# runs the same three audits on every push and pull request. To resume,
+# uncomment the triggers here, the schedule in security-audit-production.yml,
+# and the security badge in README.md.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
   workflow_dispatch:
 
 permissions:

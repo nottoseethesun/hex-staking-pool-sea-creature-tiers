@@ -2,9 +2,14 @@ name: Security Audit (Scheduled)
 
 # Daily dependency-CVE sweep against the current main branch, so newly
 # disclosed advisories are caught even when no code has changed.
+#
+# Paused while the project is inactive (it needs a PulseChain archive node):
+# the schedule is commented out, so the sweep runs only when started by hand
+# from the Actions tab. To resume, uncomment the schedule here, the triggers
+# in security-audit.yml, and the security badge in README.md.
 on:
-  schedule:
-    - cron: "55 11 * * *"
+  # schedule:
+  #   - cron: "55 11 * * *"
   workflow_dispatch:
 
 permissions:

@@ -1,7 +1,9 @@
 # HEX Sea-Creature League — Where Do You Swim?
 
 [![CI](https://img.shields.io/github/actions/workflow/status/nottoseethesun/hex-staking-pool-sea-creature-tiers/ci.yml?branch=main&label=lint%20%2B%20tests)](../../actions/workflows/ci.yml)
+<!-- Paused with the security audit workflows while the project is inactive:
 [![Security Audit](https://img.shields.io/github/actions/workflow/status/nottoseethesun/hex-staking-pool-sea-creature-tiers/security-audit.yml?branch=main&label=security)](../../actions/workflows/security-audit.yml)
+-->
 
 > [!IMPORTANT]
 > **This app does not currently work: It needs to be rebuilt to work with a
