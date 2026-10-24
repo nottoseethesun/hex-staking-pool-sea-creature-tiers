@@ -62,7 +62,7 @@
     "husky": "^9.1.7",
     "knip": "^5.86.0",
     "lint-staged": "^16.4.0",
-    "markdownlint-cli2": "^0.23.1",
+    "markdownlint-cli2": "^0.24.0",
     "prettier": "^3.8.1",
     "secretlint": "^11.4.1",
     "stylelint": "^17.4.0",

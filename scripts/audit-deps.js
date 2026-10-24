@@ -50,15 +50,7 @@ const RELOCK = [
  * is tolerated; it comes off once the fix lands, and the gate fails until then.
  * @type {ReadonlyArray<{ id: string, reason: string }>}
  */
-const ALLOWED = Object.freeze([
-  {
-    id: "GHSA-vfj7-8cjw-p6xm", // braces <=3.0.3, CVE-2026-93687
-    reason:
-      "No patched braces release. Dev-only: reached via " +
-      "stylelint, markdownlint-cli2, knip, secretlint " +
-      "expanding this repo's own globs. Runtime tree clean.",
-  },
-]);
+const ALLOWED = Object.freeze([]);
 
 /**
  * Why each `package.json` override exists, keyed by package name. Every
