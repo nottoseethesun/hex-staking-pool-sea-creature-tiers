@@ -39,7 +39,9 @@ Companion guides:
 - **Tests:** Node built-in `node:test` + `node:assert/strict`.
 - **Lint/format:** ESLint v10 flat config, Prettier, Stylelint, html-validate,
   markdownlint, secretlint, and github-actionlint.
-- **CI:** GitHub Actions (`ci.yml` Node 22/24 matrix, `security-audit.yml`).
+- **CI:** GitHub Actions (`ci.yml` Node 22/24 matrix). The security audit
+  workflows (`security-audit.yml`, the daily `security-audit-production.yml`)
+  are paused while the project is inactive and run only when started by hand.
 
 ---
 

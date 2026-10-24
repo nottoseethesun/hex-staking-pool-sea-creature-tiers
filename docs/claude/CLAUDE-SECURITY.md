@@ -6,7 +6,10 @@ does not exist here — there is nothing to steal and no transaction to forge.
 
 ## Automated audit (three layers)
 
-Run in CI (`security-audit.yml`) and inside `npm run check`:
+Run inside `npm run check`, which CI (`ci.yml`) runs on every push and pull
+request. The standalone workflows, `security-audit.yml` (one job per layer) and
+the daily `security-audit-production.yml`, are paused while the project is
+inactive and run only when started by hand. The three layers:
 
 - **Dependency CVEs** — `npm run audit:deps` (`scripts/audit-deps.js`): runs
   `npm audit --json` and fails on every high or critical advisory except the

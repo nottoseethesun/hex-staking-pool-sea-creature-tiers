@@ -7,8 +7,10 @@ Keep the GitHub remote always green.
 `npm run check` (and CI `ci.yml`, Node 22/24 matrix) must pass: ESLint,
 Stylelint, html-validate, markdownlint, Prettier (JSON + YAML), actionlint, the
 three security audits, and the tests with an 80% line-coverage floor.
-`security-audit.yml` runs the three audits as separate jobs; a scheduled workflow
-re-runs the dependency audit daily.
+`security-audit.yml` runs the three audits as separate jobs, and
+`security-audit-production.yml` re-runs the dependency audit daily. Both are
+paused while the project is inactive: their automatic triggers are commented
+out, so they run only when started by hand from the Actions tab.
 
 ## The flow
 
